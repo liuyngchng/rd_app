@@ -1,0 +1,157 @@
+# ============================================
+# Android 专用
+# ============================================
+
+# 编译输出
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+*.jar
+*.aar
+bin/
+gen/
+build/
+out/
+release/
+
+# 本地配置文件
+local.properties
+keystore.properties
+*.jks
+*.keystore
+*.pem
+
+# IDE 文件
+.idea/
+.gradle/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+.vscode/
+.settings/
+.project
+.classpath
+.metadata/
+
+# Gradle 相关
+gradle-app.setting
+!gradle-wrapper.jar
+.gradle/
+gradle/
+gradlew
+gradlew.bat
+
+# 日志文件
+*.log
+*.tlog
+
+# 崩溃日志
+hs_err_pid*
+crashlytics/
+fabric/
+
+# 测试输出
+test-output/
+jacoco/
+coverage/
+androidTest/
+unitTest/
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# 配置文件（可能包含敏感信息）
+google-services.json
+GoogleService-Info.plist
+fabric.properties
+app/google-services.json
+app/src/debug/google-services.json
+app/src/release/google-services.json
+
+# Firebase
+firebase-debug.log
+firebase-crashlytics-build.properties
+
+# 性能分析文件
+*.hprof
+*.trace
+captures/
+performance/
+
+# NDK 相关
+*.so
+*.dylib
+*.dll
+*.obj
+*.o
+*.a
+*.lib
+
+# 资源文件备份
+*.backup
+*.orig
+*.rej
+
+# ProGuard 输出
+proguard/
+dump.txt
+mapping.txt
+seeds.txt
+usage.txt
+
+# 签名文件
+*.signing
+signing/
+key/
+keys/
+
+# ============================================
+# Kotlin 特定
+# ============================================
+*.kotlin_module
+.kotlin/
+
+# ============================================
+# Flutter (如果使用 Flutter)
+# ============================================
+*.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+.pub/
+packages/
+pubspec.lock
+
+# ============================================
+# React Native (如果使用 RN)
+# ============================================
+node_modules/
+npm-debug.log
+yarn-error.log
+.buckd/
+.nyc_output/
+coverage/
+.pnp/
+.pnp.js
+.env
+
+# ============================================
+# 通用
+# ============================================
+*.bak
+*.swp
+*~
+.directory
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.iml
