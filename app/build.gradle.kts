@@ -57,6 +57,25 @@ android {
     }
     buildToolsVersion = "37.0.0"
     ndkVersion = "29.0.14206865"
+
+}
+
+tasks.whenTaskAdded {
+    if (name == "assembleRelease") {
+        doLast {
+            val releaseDir = file("build/outputs/apk/release")
+            val originalFile = releaseDir.listFiles()?.find { it.name.endsWith(".apk") }
+            originalFile?.let { file ->
+                val newName = "rd_app_v${android.defaultConfig.versionName}_release.apk"
+                val newFile = File(releaseDir, newName)
+                if (file.renameTo(newFile)) {
+                    println("✅ APK renamed to: $newName")
+                } else {
+                    println("⚠️ Failed to rename APK")
+                }
+            }
+        }
+    }
 }
 
 dependencies {
