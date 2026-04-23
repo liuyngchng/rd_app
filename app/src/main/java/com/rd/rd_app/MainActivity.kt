@@ -162,7 +162,6 @@ fun GreetingPreview() {
 fun LoginPage(modifier: Modifier = Modifier) {
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
-    var confirmPassword by rememberSaveable { mutableStateOf("") }
 
     val configuration = LocalConfiguration.current
     val isSmallScreen = configuration.screenWidthDp < 360
@@ -198,17 +197,6 @@ fun LoginPage(modifier: Modifier = Modifier) {
         )
 
         Spacer(modifier = Modifier.height(fieldSpacing))
-
-        OutlinedTextField(
-            value = confirmPassword,
-            onValueChange = { confirmPassword = it },
-            label = { Text("确认密码") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true
-        )
-
-        Spacer(modifier = Modifier.height(buttonSpacing))
 
         Button(
             onClick = {
