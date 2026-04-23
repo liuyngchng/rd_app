@@ -138,7 +138,7 @@ enum class AppDestinations(
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
-        text = "你好 $name, 这是 rd 的测试 app.",
+        text = "$name, 这是 rd 的测试 app.",
         modifier = modifier
     )
 }
