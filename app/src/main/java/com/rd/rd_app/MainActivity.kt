@@ -1,5 +1,7 @@
 package com.rd.rd_app
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,8 +31,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
@@ -46,10 +53,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import com.rd.rd_app.ui.theme.Rd_appTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ConfigManager.init(this)
         enableEdgeToEdge()
         setContent {
             Rd_appTheme {
@@ -89,21 +98,18 @@ fun Rd_appApp() {
                 }
             }
         ) {
-            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                when (currentDestination) {
-                    AppDestinations.HOME -> ChatPage(
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                    AppDestinations.CONFIG -> Greeting(
-                        name = "配置",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                    AppDestinations.PROFILE -> ProfilePage(
-                        username = loggedInUsername,
-                        onLogout = { isLoggedIn = false; currentDestination = AppDestinations.HOME },
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+            when (currentDestination) {
+                AppDestinations.HOME -> ChatPage(
+                    modifier = Modifier.fillMaxSize()
+                )
+                AppDestinations.CONFIG -> ConfigPage(
+                    modifier = Modifier.fillMaxSize()
+                )
+                AppDestinations.PROFILE -> ProfilePage(
+                    username = loggedInUsername,
+                    onLogout = { isLoggedIn = false; currentDestination = AppDestinations.HOME },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -118,12 +124,171 @@ enum class AppDestinations(
     PROFILE("我的", R.drawable.ic_account_box),
 }
 
+object ConfigManager {
+    private const val PREFS_NAME = "llm_config"
+    private const val KEY_API_URL = "api_url"
+    private const val KEY_API_KEY = "api_key"
+    private const val KEY_MODEL_NAME = "model_name"
+
+    private lateinit var prefs: SharedPreferences
+
+    fun init(context: Context) {
+        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    var apiUrl: String
+        get() = prefs.getString(KEY_API_URL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_API_URL, value).apply()
+
+    var apiKey: String
+        get() = prefs.getString(KEY_API_KEY, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_API_KEY, value).apply()
+
+    var modelName: String
+        get() = prefs.getString(KEY_MODEL_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_MODEL_NAME, value).apply()
+}
+
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
         text = "$name, 这是 rd 的测试 app.",
         modifier = modifier
     )
+}
+
+@Composable
+fun ConfigPage(modifier: Modifier = Modifier) {
+    var currentStep by rememberSaveable { mutableStateOf(0) }
+    var apiUrl by remember { mutableStateOf(ConfigManager.apiUrl) }
+    var apiKey by remember { mutableStateOf(ConfigManager.apiKey) }
+    var modelName by remember { mutableStateOf(ConfigManager.modelName) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    val stepTitles = listOf("API URL", "API 密钥", "模型名称")
+    val stepDescriptions = listOf(
+        "请输入大语言模型的 API 地址",
+        "请输入 API 密钥",
+        "请输入要使用的模型名称"
+    )
+
+    Scaffold(
+        modifier = modifier,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "大语言模型配置",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Text(
+                text = "步骤 ${currentStep + 1} / 3：${stepTitles[currentStep]}",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text(
+                text = stepDescriptions[currentStep],
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            when (currentStep) {
+                0 -> OutlinedTextField(
+                    value = apiUrl,
+                    onValueChange = { apiUrl = it },
+                    label = { Text("API URL") },
+                    placeholder = { Text("https://api.deepseek.com") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                1 -> OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("API 密钥") },
+                    placeholder = { Text("sk-...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                2 -> OutlinedTextField(
+                    value = modelName,
+                    onValueChange = { modelName = it },
+                    label = { Text("模型名称") },
+                    placeholder = { Text("deepseek-chat") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (currentStep > 0) {
+                    OutlinedButton(
+                        onClick = { currentStep-- },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("上一步",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                if (currentStep < 2) {
+                    Button(
+                        onClick = { currentStep++ },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        enabled = when (currentStep) {
+                            0 -> apiUrl.isNotBlank()
+                            1 -> apiKey.isNotBlank()
+                            else -> true
+                        }
+                    ) {
+                        Text("下一步",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            ConfigManager.apiUrl = apiUrl
+                            ConfigManager.apiKey = apiKey
+                            ConfigManager.modelName = modelName
+                            scope.launch {
+                                snackbarHostState.showSnackbar("配置已保存", duration = SnackbarDuration.Short)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("保存配置",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
 }
 
 data class ChatMessage(val text: String, val isUser: Boolean)
@@ -257,20 +422,15 @@ fun GreetingPreview() {
 
 @Composable
 fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = Modifier) {
+    var currentStep by rememberSaveable { mutableStateOf(0) }
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var errorMessage by rememberSaveable { mutableStateOf("") }
 
-    val configuration = LocalConfiguration.current
-    val isSmallScreen = configuration.screenWidthDp < 360
-
-    val horizontalPadding = if (isSmallScreen) 8.dp else 16.dp
-    val fieldSpacing = if (isSmallScreen) 8.dp else 12.dp
-
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = horizontalPadding),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -282,59 +442,98 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
             color = MaterialTheme.colorScheme.primary
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(48.dp))
 
-        OutlinedTextField(
-            value = username,
-            onValueChange = { username = it; errorMessage = "" },
-            label = { Text("用户名") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.headlineMedium.copy(
-                color = Color.Black
-            )
+        Text(
+            text = "步骤 ${currentStep + 1} / 2",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(fieldSpacing))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it; errorMessage = "" },
-            label = { Text("密码") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.headlineMedium.copy(
-                color = Color.Black
+        when (currentStep) {
+            0 -> OutlinedTextField(
+                value = username,
+                onValueChange = { username = it; errorMessage = "" },
+                label = { Text("用户名") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.headlineMedium.copy(
+                    color = Color.Black
+                )
             )
-        )
-
-        Spacer(modifier = Modifier.height(fieldSpacing))
-
-        Button(
-            onClick = {
-                if (username == "avata" && password == "avata") {
-                    onLoginSuccess(username)
-                } else {
-                    errorMessage = "用户名或密码错误"
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Text("登    录",
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color.White
+            1 -> OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; errorMessage = "" },
+                label = { Text("密码") },
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.headlineMedium.copy(
+                    color = Color.Black
+                )
             )
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
         if (errorMessage.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = errorMessage,
                 color = Color.Red,
                 style = MaterialTheme.typography.bodySmall
             )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (currentStep == 1) {
+                OutlinedButton(
+                    onClick = { currentStep = 0; errorMessage = "" },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("上一步",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            if (currentStep == 0) {
+                Button(
+                    onClick = { currentStep = 1 },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    enabled = username.isNotBlank()
+                ) {
+                    Text("下一步",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White
+                    )
+                }
+            } else {
+                Button(
+                    onClick = {
+                        if (username == "avata" && password == "avata") {
+                            onLoginSuccess(username)
+                        } else {
+                            errorMessage = "用户名或密码错误"
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("登    录",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White
+                    )
+                }
+            }
         }
     }
 }
