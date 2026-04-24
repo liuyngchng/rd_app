@@ -159,6 +159,8 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun ConfigPage(modifier: Modifier = Modifier) {
+    val hasConfig = ConfigManager.apiUrl.isNotBlank() || ConfigManager.apiKey.isNotBlank() || ConfigManager.modelName.isNotBlank()
+    var isEditing by rememberSaveable { mutableStateOf(!hasConfig) }
     var currentStep by rememberSaveable { mutableStateOf(0) }
     var apiUrl by remember { mutableStateOf(ConfigManager.apiUrl) }
     var apiKey by remember { mutableStateOf(ConfigManager.apiKey) }
@@ -168,9 +170,9 @@ fun ConfigPage(modifier: Modifier = Modifier) {
 
     val stepTitles = listOf("API URL", "API 密钥", "模型名称")
     val stepDescriptions = listOf(
-        "请输入大语言模型的 API 地址",
+        "请输入模型的 API 地址",
         "请输入 API 密钥",
-        "请输入要使用的模型名称"
+        "请输入模型名称"
     )
 
     Scaffold(
@@ -184,108 +186,168 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "大语言模型配置",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Text(
-                text = "步骤 ${currentStep + 1} / 3：${stepTitles[currentStep]}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Text(
-                text = stepDescriptions[currentStep],
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            when (currentStep) {
-                0 -> OutlinedTextField(
-                    value = apiUrl,
-                    onValueChange = { apiUrl = it },
-                    label = { Text("API URL") },
-                    placeholder = { Text("https://api.deepseek.com") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+            if (!isEditing) {
+                Text(
+                    text = "模型配置",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
-                1 -> OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("API 密钥") },
-                    placeholder = { Text("sk-...") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                2 -> OutlinedTextField(
-                    value = modelName,
-                    onValueChange = { modelName = it },
-                    label = { Text("模型名称") },
-                    placeholder = { Text("deepseek-chat") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-            }
 
-            Spacer(modifier = Modifier.weight(1f))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ConfigInfoRow(label = "API URL", value = ConfigManager.apiUrl)
+                        ConfigInfoRow(label = "API 密钥", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
+                        ConfigInfoRow(label = "模型名称", value = ConfigManager.modelName)
+                    }
+                }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                Spacer(modifier = Modifier.weight(1f))
+
+                Button(
+                    onClick = { isEditing = true; currentStep = 0 },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("修    改",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
                 if (currentStep > 0) {
                     Text(
-                        text = "< 上一步",
+                        text = "<-",
                         modifier = Modifier.clickable { currentStep-- },
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
 
+                Text(
+                    text = "模型配置",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Text(
+                    text = "步骤 ${currentStep + 1} / 3：${stepTitles[currentStep]}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = stepDescriptions[currentStep],
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                when (currentStep) {
+                    0 -> OutlinedTextField(
+                        value = apiUrl,
+                        onValueChange = { apiUrl = it },
+                        label = { Text("API URL") },
+                        placeholder = { Text("https://api.deepseek.com") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    1 -> OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("API 密钥") },
+                        placeholder = { Text("sk-...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    2 -> OutlinedTextField(
+                        value = modelName,
+                        onValueChange = { modelName = it },
+                        label = { Text("模型名称") },
+                        placeholder = { Text("deepseek-chat") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+
                 Spacer(modifier = Modifier.weight(1f))
 
-                if (currentStep < 2) {
-                    Button(
-                        onClick = { currentStep++ },
-                        modifier = Modifier.fillMaxWidth(0.5f),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = when (currentStep) {
-                            0 -> apiUrl.isNotBlank()
-                            1 -> apiKey.isNotBlank()
-                            else -> true
-                        }
-                    ) {
-                        Text("下一步",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = Color.White
-                        )
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            ConfigManager.apiUrl = apiUrl
-                            ConfigManager.apiKey = apiKey
-                            ConfigManager.modelName = modelName
-                            scope.launch {
-                                snackbarHostState.showSnackbar("配置已保存", duration = SnackbarDuration.Short)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    if (currentStep < 2) {
+                        Button(
+                            onClick = { currentStep++ },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            enabled = when (currentStep) {
+                                0 -> apiUrl.isNotBlank()
+                                1 -> apiKey.isNotBlank()
+                                else -> true
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("保存",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = Color.White
-                        )
+                        ) {
+                            Text("下一步",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Color.White
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                ConfigManager.apiUrl = apiUrl
+                                ConfigManager.apiKey = apiKey
+                                ConfigManager.modelName = modelName
+                                apiUrl = apiUrl
+                                apiKey = apiKey
+                                modelName = modelName
+                                isEditing = false
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("配置已保存", duration = SnackbarDuration.Short)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("保    存",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
         }
+    }
+}
+
+@Composable
+private fun ConfigInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value.ifBlank { "未设置" },
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (value.isNotBlank()) MaterialTheme.colorScheme.onSurface else Color.Gray
+        )
     }
 }
 
@@ -488,7 +550,7 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp)
         ) {
-            Text("登  录",
+            Text("登   录",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White
             )
