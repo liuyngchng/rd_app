@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -47,36 +49,49 @@ class MainActivity : ComponentActivity() {
 @PreviewScreenSizes
 @Composable
 fun Rd_appApp() {
+    var isLoggedIn by rememberSaveable { mutableStateOf(false) }
+    var loggedInUsername by rememberSaveable { mutableStateOf("") }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
 
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            AppDestinations.entries.forEach {
-                item(
-                    icon = {
-                        Icon(
-                            painterResource(it.icon),
-                            contentDescription = it.label
-                        )
-                    },
-                    label = { Text(it.label) },
-                    selected = it == currentDestination,
-                    onClick = { currentDestination = it }
-                )
+    if (!isLoggedIn) {
+        LoginPage(
+            onLoginSuccess = { username -> loggedInUsername = username; isLoggedIn = true },
+            modifier = Modifier.fillMaxSize()
+        )
+    } else {
+        NavigationSuiteScaffold(
+            navigationSuiteItems = {
+                AppDestinations.entries.forEach {
+                    item(
+                        icon = {
+                            Icon(
+                                painterResource(it.icon),
+                                contentDescription = it.label
+                            )
+                        },
+                        label = { Text(it.label) },
+                        selected = it == currentDestination,
+                        onClick = { currentDestination = it }
+                    )
+                }
             }
-        }
-    ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            when (currentDestination) {
-                AppDestinations.HOME -> LoginPage(modifier = Modifier.padding(innerPadding))
-                AppDestinations.CONFIG -> Greeting(
-                    name = "配置按钮",
-                    modifier = Modifier.padding(innerPadding)
-                )
-                AppDestinations.PROFILE -> Greeting(
-                    name = "我的按钮",
-                    modifier = Modifier.padding(innerPadding)
-                )
+        ) {
+            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                when (currentDestination) {
+                    AppDestinations.HOME -> Greeting(
+                        name = "首页",
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                    AppDestinations.CONFIG -> Greeting(
+                        name = "配置",
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                    AppDestinations.PROFILE -> ProfilePage(
+                        username = loggedInUsername,
+                        onLogout = { isLoggedIn = false; currentDestination = AppDestinations.HOME },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
             }
         }
     }
@@ -99,6 +114,29 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
+@Composable
+fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "当前用户：$username",
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Button(
+            onClick = onLogout,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text("退出")
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
@@ -108,16 +146,16 @@ fun GreetingPreview() {
 }
 
 @Composable
-fun LoginPage(modifier: Modifier = Modifier) {
+fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = Modifier) {
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var errorMessage by rememberSaveable { mutableStateOf("") }
 
     val configuration = LocalConfiguration.current
     val isSmallScreen = configuration.screenWidthDp < 360
 
     val horizontalPadding = if (isSmallScreen) 8.dp else 16.dp
     val fieldSpacing = if (isSmallScreen) 8.dp else 12.dp
-    val buttonSpacing = if (isSmallScreen) 16.dp else 20.dp
 
     Column(
         modifier = modifier
@@ -128,7 +166,7 @@ fun LoginPage(modifier: Modifier = Modifier) {
     ) {
         OutlinedTextField(
             value = username,
-            onValueChange = { username = it },
+            onValueChange = { username = it; errorMessage = "" },
             label = { Text("用户名") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
@@ -138,7 +176,7 @@ fun LoginPage(modifier: Modifier = Modifier) {
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; errorMessage = "" },
             label = { Text("密码") },
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation(),
@@ -149,12 +187,24 @@ fun LoginPage(modifier: Modifier = Modifier) {
 
         Button(
             onClick = {
-                // 处理登录逻辑
-                // 这里可以添加登录验证
+                if (username == "avata" && password == "avata") {
+                    onLoginSuccess(username)
+                } else {
+                    errorMessage = "用户名或密码错误"
+                }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("登录")
+        }
+
+        if (errorMessage.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = errorMessage,
+                color = Color.Red,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
