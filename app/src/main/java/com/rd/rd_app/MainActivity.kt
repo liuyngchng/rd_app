@@ -1,15 +1,10 @@
 package com.rd.rd_app
 
-import android.annotation.SuppressLint
 import android.os.Bundle
-import android.view.ViewGroup
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,7 +30,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.rd.rd_app.ui.theme.Rd_appTheme
 
 class MainActivity : ComponentActivity() {
@@ -83,51 +77,6 @@ fun Rd_appApp() {
                     name = "我的按钮",
                     modifier = Modifier.padding(innerPadding)
                 )
-            }
-        }
-    }
-}
-
-@SuppressLint("SetJavaScriptEnabled")
-@Composable
-fun BaiduWebView(modifier: Modifier = Modifier) {
-    var shouldLoad by rememberSaveable { mutableStateOf(false) }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        if (shouldLoad) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    WebView(context).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.loadWithOverviewMode = true
-                        settings.useWideViewPort = true
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(
-                                view: WebView,
-                                request: android.webkit.WebResourceRequest
-                            ): Boolean {
-                                return false
-                            }
-                        }
-                        loadUrl("https://m.baidu.com")
-                    }
-                }
-            )
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Button(onClick = { shouldLoad = true }) {
-                    Text("访问网络")
-                }
             }
         }
     }
