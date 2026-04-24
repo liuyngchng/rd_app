@@ -420,7 +420,6 @@ fun GreetingPreview() {
 
 @Composable
 fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = Modifier) {
-    var currentStep by rememberSaveable { mutableStateOf(0) }
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var errorMessage by rememberSaveable { mutableStateOf("") }
@@ -442,37 +441,30 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        Text(
-            text = "步骤 ${currentStep + 1} / 2",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it; errorMessage = "" },
+            label = { Text("用户名") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(
+                color = Color.Black
+            )
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        when (currentStep) {
-            0 -> OutlinedTextField(
-                value = username,
-                onValueChange = { username = it; errorMessage = "" },
-                label = { Text("用户名") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.headlineMedium.copy(
-                    color = Color.Black
-                )
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it; errorMessage = "" },
+            label = { Text("密码") },
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(
+                color = Color.Black
             )
-            1 -> OutlinedTextField(
-                value = password,
-                onValueChange = { password = it; errorMessage = "" },
-                label = { Text("密码") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.headlineMedium.copy(
-                    color = Color.Black
-                )
-            )
-        }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -485,50 +477,21 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        Row(
+        Button(
+            onClick = {
+                if (username == "avata" && password == "avata") {
+                    onLoginSuccess(username)
+                } else {
+                    errorMessage = "用户名或密码错误"
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            shape = RoundedCornerShape(10.dp)
         ) {
-            if (currentStep == 1) {
-                Text(
-                    text = "< 上一步",
-                    modifier = Modifier.clickable { currentStep = 0; errorMessage = "" },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            if (currentStep == 0) {
-                Button(
-                    onClick = { currentStep = 1 },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    enabled = username.isNotBlank()
-                ) {
-                    Text("下一步",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White
-                    )
-                }
-            } else {
-                Button(
-                    onClick = {
-                        if (username == "avata" && password == "avata") {
-                            onLoginSuccess(username)
-                        } else {
-                            errorMessage = "用户名或密码错误"
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(0.5f),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("登  录",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White
-                    )
-                }
-            }
+            Text("登  录",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White
+            )
         }
     }
 }
