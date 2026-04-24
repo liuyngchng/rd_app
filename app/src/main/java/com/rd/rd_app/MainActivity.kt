@@ -5,8 +5,21 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -78,8 +91,7 @@ fun Rd_appApp() {
         ) {
             Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                 when (currentDestination) {
-                    AppDestinations.HOME -> Greeting(
-                        name = "首页",
+                    AppDestinations.HOME -> ChatPage(
                         modifier = Modifier.padding(innerPadding)
                     )
                     AppDestinations.CONFIG -> Greeting(
@@ -114,6 +126,100 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
+data class ChatMessage(val text: String, val isUser: Boolean)
+
+@Composable
+fun ChatPage(modifier: Modifier = Modifier) {
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var inputText by rememberSaveable { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(Unit) {
+        messages.add(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
+    }
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            state = listState,
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(messages) { message ->
+                ChatBubble(message)
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("输入消息...") },
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            IconButton(
+                onClick = {
+                    if (inputText.isNotBlank()) {
+                        messages.add(ChatMessage(inputText, true))
+                        inputText = ""
+                    }
+                }
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_send),
+                    contentDescription = "发送",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatBubble(message: ChatMessage) {
+    val alignment = if (message.isUser) Alignment.TopEnd else Alignment.TopStart
+    val bgColor = if (message.isUser)
+        MaterialTheme.colorScheme.primary
+    else
+        MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (message.isUser)
+        Color.White
+    else
+        MaterialTheme.colorScheme.onSurface
+
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = alignment) {
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = if (message.isUser) 16.dp else 4.dp,
+                bottomEnd = if (message.isUser) 4.dp else 16.dp
+            ),
+            color = bgColor
+        ) {
+            Text(
+                text = message.text,
+                color = textColor,
+                modifier = Modifier.padding(12.dp),
+                style = MaterialTheme.typography.bodyLarge
+            )
+        }
+    }
+}
+
 @Composable
 fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Modifier) {
     Column(
@@ -130,9 +236,13 @@ fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Mod
             onClick = onLogout,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(16.dp),
+            shape = RoundedCornerShape(10.dp)
         ) {
-            Text("退出")
+            Text("退    出",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White
+            )
         }
     }
 }
@@ -164,12 +274,25 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Text(
+            text = "我的应用",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = MaterialTheme.typography.headlineMedium.fontSize * 1.5f
+            ),
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
         OutlinedTextField(
             value = username,
             onValueChange = { username = it; errorMessage = "" },
             label = { Text("用户名") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(
+                color = Color.Black
+            )
         )
 
         Spacer(modifier = Modifier.height(fieldSpacing))
@@ -180,7 +303,10 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
             label = { Text("密码") },
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = PasswordVisualTransformation(),
-            singleLine = true
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineMedium.copy(
+                color = Color.Black
+            )
         )
 
         Spacer(modifier = Modifier.height(fieldSpacing))
@@ -193,9 +319,13 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
                     errorMessage = "用户名或密码错误"
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(10.dp)
         ) {
-            Text("登录")
+            Text("登    录",
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White
+            )
         }
 
         if (errorMessage.isNotEmpty()) {

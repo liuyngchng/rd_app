@@ -2,10 +2,11 @@ package com.rd.rd_app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val TechBlue80 = Color(0xFF1066A9)
+val TechBlueGrey80 = Color(0xFF5A5E60)
+val TechCyan80 = Color(0xFF14D9F3)
+
+val TechBlue40 = Color(0xFF066AC2)
+val TechBlueGrey40 = Color(0xFF3F4344)
+val TechCyan40 = Color(0xFF00838F)
