@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,7 +32,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -234,25 +234,23 @@ fun ConfigPage(modifier: Modifier = Modifier) {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 if (currentStep > 0) {
-                    OutlinedButton(
-                        onClick = { currentStep-- },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("上一步",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Text(
+                        text = "< 上一步",
+                        modifier = Modifier.clickable { currentStep-- },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
+
+                Spacer(modifier = Modifier.weight(1f))
 
                 if (currentStep < 2) {
                     Button(
                         onClick = { currentStep++ },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(0.5f),
                         shape = RoundedCornerShape(10.dp),
                         enabled = when (currentStep) {
                             0 -> apiUrl.isNotBlank()
@@ -275,10 +273,10 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                                 snackbarHostState.showSnackbar("配置已保存", duration = SnackbarDuration.Short)
                             }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("保存配置",
+                        Text("保存",
                             style = MaterialTheme.typography.headlineMedium,
                             color = Color.White
                         )
@@ -489,19 +487,16 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
             if (currentStep == 1) {
-                OutlinedButton(
-                    onClick = { currentStep = 0; errorMessage = "" },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("上一步",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                Text(
+                    text = "< 上一步",
+                    modifier = Modifier.clickable { currentStep = 0; errorMessage = "" },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             if (currentStep == 0) {
@@ -525,10 +520,10 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
                             errorMessage = "用户名或密码错误"
                         }
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(0.5f),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("登    录",
+                    Text("登  录",
                         style = MaterialTheme.typography.headlineMedium,
                         color = Color.White
                     )
