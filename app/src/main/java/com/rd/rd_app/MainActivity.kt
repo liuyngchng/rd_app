@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,7 +54,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import com.rd.rd_app.ui.theme.Rd_appTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -357,7 +364,9 @@ data class ChatMessage(val text: String, val isUser: Boolean)
 fun ChatPage(modifier: Modifier = Modifier) {
     val messages = remember { mutableStateListOf<ChatMessage>() }
     var inputText by rememberSaveable { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         messages.add(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
@@ -373,7 +382,7 @@ fun ChatPage(modifier: Modifier = Modifier) {
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             state = listState,
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 48.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(messages) { message ->
@@ -391,25 +400,99 @@ fun ChatPage(modifier: Modifier = Modifier) {
                 value = inputText,
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("输入消息...") },
-                singleLine = true
+                placeholder = { Text(if (isLoading) "等待回复..." else "输入消息...") },
+                singleLine = true,
+                enabled = !isLoading
             )
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(
                 onClick = {
-                    if (inputText.isNotBlank()) {
-                        messages.add(ChatMessage(inputText, true))
+                    if (inputText.isNotBlank() && !isLoading) {
+                        val userMsg = inputText.trim()
+                        messages.add(ChatMessage(userMsg, true))
                         inputText = ""
+                        isLoading = true
+
+                        scope.launch {
+                            val reply = callLlmApi(
+                                configUrl = ConfigManager.apiUrl,
+                                apiKey = ConfigManager.apiKey,
+                                model = ConfigManager.modelName,
+                                conversation = messages.toList()
+                            )
+                            if (reply != null) {
+                                messages.add(ChatMessage(reply, false))
+                            } else {
+                                messages.add(ChatMessage("请求失败，请检查模型配置和网络连接", false))
+                            }
+                            isLoading = false
+                        }
                     }
-                }
+                },
+                enabled = !isLoading
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ic_send),
                     contentDescription = "发送",
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
                 )
             }
         }
+    }
+}
+
+private suspend fun callLlmApi(
+    configUrl: String,
+    apiKey: String,
+    model: String,
+    conversation: List<ChatMessage>
+): String? = withContext(Dispatchers.IO) {
+    try {
+        val url = configUrl.trimEnd('/') + "/chat/completions"
+
+        val messagesArray = JSONArray()
+        messagesArray.put(JSONObject().apply {
+            put("role", "system")
+            put("content", "你是一个聊天助手，使用中文给出回答.")
+        })
+        conversation.forEach { msg ->
+            messagesArray.put(JSONObject().apply {
+                put("role", if (msg.isUser) "user" else "assistant")
+                put("content", msg.text)
+            })
+        }
+
+        val requestBody = JSONObject().apply {
+            put("model", model)
+            put("messages", messagesArray)
+            put("stream", false)
+        }
+
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.setRequestProperty("Authorization", "Bearer $apiKey")
+        conn.doOutput = true
+        conn.connectTimeout = 30000
+        conn.readTimeout = 60000
+
+        conn.outputStream.write(requestBody.toString().toByteArray())
+
+        if (conn.responseCode == 200) {
+            val response = conn.inputStream.bufferedReader().readText()
+            val json = JSONObject(response)
+            json.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+        } else {
+            val error = conn.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+            Log.e("ChatPage", "API error ${conn.responseCode}: $error")
+            null
+        }
+    } catch (e: Exception) {
+        Log.e("ChatPage", "Request failed", e)
+        null
     }
 }
 
@@ -494,7 +577,7 @@ fun LoginPage(onLoginSuccess: (username: String) -> Unit, modifier: Modifier = M
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "我的应用",
+            text = "AI 助手",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontSize = MaterialTheme.typography.headlineMedium.fontSize * 1.5f
             ),
