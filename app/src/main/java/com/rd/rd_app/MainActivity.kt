@@ -1,11 +1,17 @@
 package com.rd.rd_app
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.media.MediaScannerConnection
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -64,6 +70,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Popup
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
@@ -72,6 +80,8 @@ import com.rd.rd_app.ui.theme.Rd_appTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONArray
@@ -228,9 +238,9 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                ConfigInfoRow(label = "API URL", value = ConfigManager.apiUrl)
-                                ConfigInfoRow(label = "API 密钥", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
-                                ConfigInfoRow(label = "模型名称", value = ConfigManager.modelName)
+                                ConfigInfoRow(label = "API URL: ", value = ConfigManager.apiUrl)
+                                ConfigInfoRow(label = "API 密钥: ", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
+                                ConfigInfoRow(label = "模型名称: ", value = ConfigManager.modelName)
                             }
                         }
                     }
@@ -359,20 +369,51 @@ fun ConfigPage(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ConfigInfoRow(label: String, value: String) {
+    var showFullValue by remember { mutableStateOf(false) }
+    val displayValue = value.ifBlank { "未设置" }
+    val isUnset = value.isBlank()
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 8.dp)
         )
-        Text(
-            text = value.ifBlank { "未设置" },
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (value.isNotBlank()) MaterialTheme.colorScheme.onSurface else Color.Gray
-        )
+        Box {
+            Text(
+                text = displayValue,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (!isUnset) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(enabled = !isUnset) { showFullValue = true }
+            )
+
+            if (showFullValue) {
+                Popup(
+                    onDismissRequest = { showFullValue = false },
+                    alignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        shadowElevation = 6.dp,
+                        color = MaterialTheme.colorScheme.inverseSurface
+                    ) {
+                        Text(
+                            text = value,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.inverseOnSurface
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -555,7 +596,12 @@ fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Mod
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            Toast.makeText(context, "拍照成功", Toast.LENGTH_SHORT).show()
+            val uri = saveBitmapToGallery(context, bitmap)
+            if (uri != null) {
+                Toast.makeText(context, "拍照成功，已保存到相册", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -631,6 +677,45 @@ fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Mod
                 )
             }
         }
+    }
+}
+
+private fun saveBitmapToGallery(context: Context, bitmap: Bitmap): Uri? {
+    val filename = "IMG_${System.currentTimeMillis()}.jpg"
+
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+        uri?.let {
+            resolver.openOutputStream(it)?.use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+            }
+            contentValues.clear()
+            contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(it, contentValues, null, null)
+        }
+
+        uri
+    } else {
+        val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+        if (!imagesDir.exists()) imagesDir.mkdirs()
+        val imageFile = File(imagesDir, filename)
+
+        FileOutputStream(imageFile).use { outputStream ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+        }
+
+        MediaScannerConnection.scanFile(context, arrayOf(imageFile.absolutePath), null, null)
+
+        Uri.fromFile(imageFile)
     }
 }
 
