@@ -680,7 +680,7 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("dual_recorder") },
+                    text = { Text("录像") },
                     onClick = {
                         showMenu = false
                         onStartRecorder()

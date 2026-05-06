@@ -1,11 +1,14 @@
 package com.rd.rd_app
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
 import android.media.MediaRecorder
+import android.os.Build
+import android.provider.MediaStore
 import android.os.Environment
 import android.os.Handler
 import android.os.HandlerThread
@@ -14,6 +17,8 @@ import android.view.Surface
 import android.view.TextureView
 import android.view.TextureView.SurfaceTextureListener
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -57,11 +62,50 @@ private fun findCameraIds(context: Context): CameraIds {
 
 private data class CameraIds(val rear: String?, val front: String?)
 
+/** Proactively check if the device supports concurrent front+back cameras (Android 12+) */
+private fun supportsDualConcurrentCameras(context: Context, ids: CameraIds): Boolean? {
+    val rear = ids.rear ?: return false
+    val front = ids.front ?: return false
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null // unknown, fall back to try-and-fail
+
+    return try {
+        val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val concurrentSets = manager.getConcurrentCameraIds()
+        concurrentSets.any { set -> set.contains(rear) && set.contains(front) }
+    } catch (_: Exception) {
+        null
+    }
+}
+
 // ── Permission check ──
 
 private fun checkRecordingPermissions(context: Context): Boolean {
     return ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+}
+
+// ── Publish video to system gallery ──
+
+private fun addVideoToGallery(context: Context, file: File) {
+    if (!file.exists()) return
+    try {
+        val values = ContentValues().apply {
+            put(MediaStore.Video.Media.DISPLAY_NAME, file.name)
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/DualRecorder")
+        }
+        val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                file.inputStream().use { `in` -> `in`.copyTo(out) }
+            }
+            // Remove the internal copy since the gallery now has it
+            file.delete()
+            Log.d("DualRecorder", "Video published to gallery: ${file.name}")
+        }
+    } catch (e: Exception) {
+        Log.e("DualRecorder", "Failed to publish video to gallery", e)
+    }
 }
 
 // ── Composable ──
@@ -76,6 +120,8 @@ fun DualRecorderScreen(onExit: () -> Unit) {
     var fileCount by remember { mutableIntStateOf(0) }
     var rearReady by remember { mutableStateOf(false) }
     var frontReady by remember { mutableStateOf(false) }
+    var dualSupported by remember { mutableStateOf<Boolean?>(null) } // true/false on 12+, null on <12
+    var permissionsReady by remember { mutableStateOf(false) }
 
     val recordingScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
 
@@ -93,7 +139,30 @@ fun DualRecorderScreen(onExit: () -> Unit) {
     val rearTextureView = remember { TextureView(context) }
     val frontTextureView = remember { TextureView(context) }
 
+    // ── runtime permission request ──
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted.values.all { it }) {
+            permissionsReady = true
+        } else {
+            errorMsg = "需要相机和录音权限"
+        }
+    }
+
+    // Request permissions on first launch
+    LaunchedEffect(Unit) {
+        if (!checkRecordingPermissions(context)) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        } else {
+            permissionsReady = true
+        }
+    }
+
     // ── helpers ──
+
+    // Track recorded files that need to be published to system gallery
+    val pendingGalleryFiles = remember { mutableListOf<File>() }
 
     fun refreshFileCount() {
         fileCount = recorderDir.listFiles()?.count { it.name.endsWith(".mp4") } ?: 0
@@ -112,26 +181,37 @@ fun DualRecorderScreen(onExit: () -> Unit) {
     fun startNewRecording() {
         manageFileCount()
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        rearRef.value?.startRecording(File(recorderDir, "REAR_${ts}.mp4"))
-        frontRef.value?.startRecording(File(recorderDir, "FRONT_${ts}.mp4"))
+        val rearFile = File(recorderDir, "REAR_${ts}.mp4")
+        val frontFile = File(recorderDir, "FRONT_${ts}.mp4")
+        rearRef.value?.startRecording(rearFile)
+        frontRef.value?.startRecording(frontFile)
+        pendingGalleryFiles.addAll(listOf(rearFile, frontFile))
         refreshFileCount()
     }
 
     fun stopAllRecording() {
         rearRef.value?.stopRecording()
         frontRef.value?.stopRecording()
+        // Publish all pending files to system gallery
+        val files = pendingGalleryFiles.toList()
+        pendingGalleryFiles.clear()
+        files.forEach { addVideoToGallery(context, it) }
     }
 
     fun cleanupAll() {
-        try { stopAllRecording() } catch (_: Exception) {}
         try { rearRef.value?.release() } catch (_: Exception) {}
         try { frontRef.value?.release() } catch (_: Exception) {}
         rearRef.value = null
         frontRef.value = null
+        // Clean up any pending files that were never published
+        pendingGalleryFiles.forEach { addVideoToGallery(context, it) }
+        pendingGalleryFiles.clear()
     }
 
-    // ── initialise cameras ──
-    LaunchedEffect(Unit) {
+    // ── initialise cameras (runs when permissionsReady becomes true) ──
+    LaunchedEffect(permissionsReady) {
+        if (!permissionsReady) return@LaunchedEffect
+
         delay(300) // ensure AndroidView is laid out
 
         val ids = findCameraIds(context)
@@ -141,6 +221,13 @@ fun DualRecorderScreen(onExit: () -> Unit) {
         if (rearId == null) {
             errorMsg = "未找到后置摄像头"
             return@LaunchedEffect
+        }
+
+        // ── Proactive dual-camera hardware check (Android 12+) ──
+        dualSupported = supportsDualConcurrentCameras(context, ids)
+        if (dualSupported == false && frontId != null) {
+            // Device explicitly reports no concurrent front+back support
+            Log.w("DualRecorder", "Hardware does not support concurrent front+back cameras")
         }
 
         val rearSession = CameraSession(context, rearTextureView, rearId, "后置", 5_000_000)
@@ -161,8 +248,8 @@ fun DualRecorderScreen(onExit: () -> Unit) {
         if (!rearOk) return@LaunchedEffect
         rearReady = true
 
-        // Try opening front camera if available
-        if (frontId != null) {
+        // Try opening front camera if available (skip if hardware says no)
+        if (frontId != null && dualSupported != false) {
             val frontSession = CameraSession(context, frontTextureView, frontId, "前置", 2_000_000)
             frontRef.value = frontSession
 
@@ -293,6 +380,11 @@ fun DualRecorderScreen(onExit: () -> Unit) {
                         .padding(8.dp)
                 )
                 if (!frontReady) {
+                    val frontMsg = when {
+                        dualSupported == false -> "不支持同时使用前后摄像头"
+                        frontRef.value != null -> "相机加载中…"
+                        else -> "前置不可用"
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -300,7 +392,7 @@ fun DualRecorderScreen(onExit: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (frontRef.value != null) "相机加载中…" else "前置不可用",
+                            text = frontMsg,
                             color = Color.Gray,
                             fontSize = 14.sp
                         )
@@ -364,12 +456,9 @@ fun DualRecorderScreen(onExit: () -> Unit) {
         ) {
             FilledTonalButton(
                 onClick = {
-                    if (isRecording) {
-                        isRecording = false
-                        stopAllRecording()
-                        recordingScope.coroutineContext[Job]?.let { j ->
-                            j.children.forEach { it.cancel() }
-                        }
+                    isRecording = false
+                    recordingScope.coroutineContext[Job]?.let { j ->
+                        j.children.forEach { it.cancel() }
                     }
                     cleanupAll()
                     onExit()
@@ -394,7 +483,7 @@ fun DualRecorderScreen(onExit: () -> Unit) {
                         Toast.makeText(context, "录制已停止", Toast.LENGTH_SHORT).show()
                     } else {
                         if (!checkRecordingPermissions(context)) {
-                            Toast.makeText(context, "需要相机和录音权限", Toast.LENGTH_SHORT).show()
+                            permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
                             return@Button
                         }
                         if (!rearReady) {
