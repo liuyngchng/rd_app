@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -208,40 +209,43 @@ fun ConfigPage(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (!isEditing) {
-                Text(
-                    text = "模型配置",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "模型配置",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                ConfigInfoRow(label = "API URL", value = ConfigManager.apiUrl)
+                                ConfigInfoRow(label = "API 密钥", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
+                                ConfigInfoRow(label = "模型名称", value = ConfigManager.modelName)
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { isEditing = true; currentStep = 0 },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        ConfigInfoRow(label = "API URL", value = ConfigManager.apiUrl)
-                        ConfigInfoRow(label = "API 密钥", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
-                        ConfigInfoRow(label = "模型名称", value = ConfigManager.modelName)
+                        Text("修    改",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = Color.White
+                        )
                     }
                 }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                Button(
-                    onClick = { isEditing = true; currentStep = 0 },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("修    改",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
             } else {
                 if (currentStep > 0) {
                     Text(
@@ -565,7 +569,7 @@ fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Mod
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().statusBarsPadding()) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
