@@ -50,8 +50,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -488,68 +486,72 @@ fun ChatPage(modifier: Modifier = Modifier) {
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().navigationBarsPadding()) {
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            state = listState,
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 48.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(messages) { message ->
-                ChatBubble(message)
-            }
-        }
-
-        Row(
+    Scaffold(modifier = modifier) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = { inputText = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(if (isLoading) "等待回复..." else "输入消息...") },
-                singleLine = true,
-                enabled = !isLoading
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
-                onClick = {
-                    if (inputText.isNotBlank() && !isLoading) {
-                        val userMsg = inputText.trim()
-                        messages.add(ChatMessage(userMsg, true))
-                        inputText = ""
-                        isLoading = true
-
-                        scope.launch {
-                            val reply = callLlmApi(
-                                configUrl = ConfigManager.apiUrl,
-                                apiKey = ConfigManager.apiKey,
-                                model = ConfigManager.modelName,
-                                conversation = messages.toList()
-                            )
-                            if (reply != null) {
-                                messages.add(ChatMessage(reply, false))
-                            } else {
-                                messages.add(ChatMessage("请求失败，请检查模型配置和网络连接", false))
-                            }
-                            isLoading = false
-                        }
-                    }
-                },
-                enabled = !isLoading
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                state = listState,
+                contentPadding = PaddingValues(top = 48.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_send),
-                    contentDescription = "发送",
-                    tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                items(messages) { message ->
+                    ChatBubble(message)
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text(if (isLoading) "等待回复..." else "输入消息...") },
+                    singleLine = true,
+                    enabled = !isLoading
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = {
+                        if (inputText.isNotBlank() && !isLoading) {
+                            val userMsg = inputText.trim()
+                            messages.add(ChatMessage(userMsg, true))
+                            inputText = ""
+                            isLoading = true
+
+                            scope.launch {
+                                val reply = callLlmApi(
+                                    configUrl = ConfigManager.apiUrl,
+                                    apiKey = ConfigManager.apiKey,
+                                    model = ConfigManager.modelName,
+                                    conversation = messages.toList()
+                                )
+                                if (reply != null) {
+                                    messages.add(ChatMessage(reply, false))
+                                } else {
+                                    messages.add(ChatMessage("请求失败，请检查模型配置和网络连接", false))
+                                }
+                                isLoading = false
+                            }
+                        }
+                    },
+                    enabled = !isLoading
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_send),
+                        contentDescription = "发送",
+                        tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -668,40 +670,41 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().statusBarsPadding()) {
-        Column(
-            modifier = Modifier.fillMaxSize().navigationBarsPadding()
-        ) {
-            Text(
-                text = "当前用户：$username",
-                modifier = Modifier.padding(16.dp),
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(10.dp)
+    Scaffold(modifier = modifier) { innerPadding ->
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text("退    出",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = Color.White
+                Text(
+                    text = "当前用户：$username",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.titleMedium
                 )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Button(
+                    onClick = onLogout,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("退    出",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // Top-right circled "+" button
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp)
-        ) {
+            // Top-right circled "+" button
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+            ) {
             IconButton(
                 onClick = { showMenu = true },
                 modifier = Modifier
@@ -741,6 +744,7 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
             }
         }
     }
+}
 }
 
 private fun saveBitmapToGallery(context: Context, bitmap: Bitmap): Uri? {
