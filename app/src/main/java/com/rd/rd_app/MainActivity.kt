@@ -103,8 +103,8 @@ class MainActivity : ComponentActivity() {
 @PreviewScreenSizes
 @Composable
 fun Rd_appApp() {
-    var isLoggedIn by rememberSaveable { mutableStateOf(false) }
-    var loggedInUsername by rememberSaveable { mutableStateOf("") }
+    var isLoggedIn by rememberSaveable { mutableStateOf(ConfigManager.isLoginValid()) }
+    var loggedInUsername by rememberSaveable { mutableStateOf(ConfigManager.savedUsername) }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showRecorder by rememberSaveable { mutableStateOf(false) }
 
@@ -112,7 +112,11 @@ fun Rd_appApp() {
         DualRecorderScreen(onExit = { showRecorder = false })
     } else if (!isLoggedIn) {
         LoginPage(
-            onLoginSuccess = { username -> loggedInUsername = username; isLoggedIn = true },
+            onLoginSuccess = { username ->
+                ConfigManager.saveLogin(username)
+                loggedInUsername = username
+                isLoggedIn = true
+            },
             modifier = Modifier.fillMaxSize()
         )
     } else {
@@ -142,7 +146,11 @@ fun Rd_appApp() {
                 )
                 AppDestinations.PROFILE -> ProfilePage(
                     username = loggedInUsername,
-                    onLogout = { isLoggedIn = false; currentDestination = AppDestinations.HOME },
+                    onLogout = {
+                        ConfigManager.clearLogin()
+                        isLoggedIn = false
+                        currentDestination = AppDestinations.HOME
+                    },
                     onStartRecorder = { showRecorder = true },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -165,6 +173,9 @@ object ConfigManager {
     private const val KEY_API_URL = "api_url"
     private const val KEY_API_KEY = "api_key"
     private const val KEY_MODEL_NAME = "model_name"
+    private const val KEY_LOGGED_USER = "logged_user"
+    private const val KEY_LOGIN_TIME = "login_time"
+    private const val LOGIN_VALID_DAYS = 7L
 
     private lateinit var prefs: SharedPreferences
 
@@ -183,6 +194,37 @@ object ConfigManager {
     var modelName: String
         get() = prefs.getString(KEY_MODEL_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_MODEL_NAME, value).apply()
+
+    // ── Login persistence (7-day auto login) ──
+
+    /** The persisted username (empty string = not logged in) */
+    val savedUsername: String
+        get() = prefs.getString(KEY_LOGGED_USER, "") ?: ""
+
+    /** Whether the saved login is still within the 7-day window */
+    fun isLoginValid(): Boolean {
+        val username = savedUsername
+        if (username.isBlank()) return false
+        val lastTime = prefs.getLong(KEY_LOGIN_TIME, 0L)
+        if (lastTime == 0L) return false
+        return System.currentTimeMillis() - lastTime < LOGIN_VALID_DAYS * 24 * 60 * 60 * 1000L
+    }
+
+    /** Save login state (called on successful login) */
+    fun saveLogin(username: String) {
+        prefs.edit()
+            .putString(KEY_LOGGED_USER, username)
+            .putLong(KEY_LOGIN_TIME, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** Clear login state (called on logout) */
+    fun clearLogin() {
+        prefs.edit()
+            .putString(KEY_LOGGED_USER, "")
+            .putLong(KEY_LOGIN_TIME, 0L)
+            .apply()
+    }
 }
 
 @Composable
