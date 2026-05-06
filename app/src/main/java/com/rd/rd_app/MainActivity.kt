@@ -106,8 +106,11 @@ fun Rd_appApp() {
     var isLoggedIn by rememberSaveable { mutableStateOf(false) }
     var loggedInUsername by rememberSaveable { mutableStateOf("") }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+    var showRecorder by rememberSaveable { mutableStateOf(false) }
 
-    if (!isLoggedIn) {
+    if (showRecorder) {
+        DualRecorderScreen(onExit = { showRecorder = false })
+    } else if (!isLoggedIn) {
         LoginPage(
             onLoginSuccess = { username -> loggedInUsername = username; isLoggedIn = true },
             modifier = Modifier.fillMaxSize()
@@ -140,6 +143,7 @@ fun Rd_appApp() {
                 AppDestinations.PROFILE -> ProfilePage(
                     username = loggedInUsername,
                     onLogout = { isLoggedIn = false; currentDestination = AppDestinations.HOME },
+                    onStartRecorder = { showRecorder = true },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -588,7 +592,7 @@ fun ChatBubble(message: ChatMessage) {
 }
 
 @Composable
-fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Modifier) {
+fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
 
@@ -673,6 +677,13 @@ fun ProfilePage(username: String, onLogout: () -> Unit, modifier: Modifier = Mod
                         } else {
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         }
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("dual_recorder") },
+                    onClick = {
+                        showMenu = false
+                        onStartRecorder()
                     }
                 )
             }
