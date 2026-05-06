@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -267,7 +268,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
             if (!isEditing) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
@@ -291,6 +292,8 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                         }
                     }
 
+                    Spacer(modifier = Modifier.weight(1f))
+
                     Button(
                         onClick = { isEditing = true; currentStep = 0 },
                         modifier = Modifier.fillMaxWidth(),
@@ -301,6 +304,8 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                             color = Color.White
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             } else {
                 if (currentStep > 0) {
@@ -483,7 +488,7 @@ fun ChatPage(modifier: Modifier = Modifier) {
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxSize().navigationBarsPadding()) {
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             state = listState,
@@ -498,7 +503,7 @@ fun ChatPage(modifier: Modifier = Modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
@@ -543,6 +548,8 @@ fun ChatPage(modifier: Modifier = Modifier) {
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -663,14 +670,15 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
 
     Box(modifier = modifier.fillMaxSize().statusBarsPadding()) {
         Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxSize().navigationBarsPadding()
         ) {
             Text(
                 text = "当前用户：$username",
                 modifier = Modifier.padding(16.dp),
                 style = MaterialTheme.typography.titleMedium
             )
+
+            Spacer(modifier = Modifier.weight(1f))
 
             Button(
                 onClick = onLogout,
@@ -684,6 +692,8 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
                     color = Color.White
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Top-right circled "+" button
