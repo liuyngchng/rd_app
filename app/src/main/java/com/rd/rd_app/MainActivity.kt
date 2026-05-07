@@ -1,11 +1,22 @@
 package com.rd.rd_app
 
 import android.Manifest
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+// Color: use fully qualified android.graphics.Color to avoid conflict with compose Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Typeface
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.io.File
 import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
+import androidx.core.content.FileProvider
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -79,7 +90,6 @@ import com.rd.rd_app.ui.theme.Rd_appTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -647,15 +657,40 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
 
+    var photoUri by remember { mutableStateOf<Uri?>(null) }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            val uri = saveBitmapToGallery(context, bitmap)
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val uri = photoUri
             if (uri != null) {
-                Toast.makeText(context, "拍照成功，已保存到相册", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                try {
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    val bitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
+                    if (bitmap != null) {
+                        val timestampedBitmap = addTimestampToBitmap(bitmap)
+                        val savedUri = saveBitmapToGallery(context, timestampedBitmap)
+                        bitmap.recycle()
+                        timestampedBitmap.recycle()
+                        if (savedUri != null) {
+                            Toast.makeText(context, "拍照成功，已保存到相册", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "读取照片失败", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e("ProfilePage", "Failed to process photo", e)
+                    Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                } finally {
+                    // Clean up the temp cache file
+                    try {
+                        val cacheFile = File(context.cacheDir, "photo_temp.jpg")
+                        if (cacheFile.exists()) cacheFile.delete()
+                    } catch (_: Exception) { }
+                }
             }
         }
     }
@@ -664,7 +699,10 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            cameraLauncher.launch(null)
+            val photoFile = File(context.cacheDir, "photo_temp.jpg")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            photoUri = uri
+            cameraLauncher.launch(uri)
         } else {
             Toast.makeText(context, "需要相机权限才能使用扫一扫", Toast.LENGTH_SHORT).show()
         }
@@ -728,7 +766,10 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
                     onClick = {
                         showMenu = false
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            cameraLauncher.launch(null)
+                            val photoFile = File(context.cacheDir, "photo_temp.jpg")
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+                            photoUri = uri
+                            cameraLauncher.launch(uri)
                         } else {
                             permissionLauncher.launch(Manifest.permission.CAMERA)
                         }
@@ -745,6 +786,33 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
         }
     }
 }
+}
+
+private fun addTimestampToBitmap(bitmap: Bitmap): Bitmap {
+    val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+
+    val textSize = bitmap.height * 0.037f
+
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        this.textSize = textSize
+        isAntiAlias = true
+        isFakeBoldText = true
+        setShadowLayer(textSize * 0.1f, textSize * 0.04f, textSize * 0.04f, android.graphics.Color.argb(180, 0, 0, 0))
+        typeface = Typeface.MONOSPACE
+    }
+
+    val bounds = Rect()
+    paint.getTextBounds(timestamp, 0, timestamp.length, bounds)
+
+    val result = bitmap.copy(Bitmap.Config.ARGB_8888, true) ?: bitmap
+    val canvas = Canvas(result)
+
+    val x = (bitmap.width - bounds.width()) / 2f
+    val y = bounds.height() + textSize * 0.3f
+
+    canvas.drawText(timestamp, x, y, paint)
+    return result
 }
 
 private fun saveBitmapToGallery(context: Context, bitmap: Bitmap): Uri? {
