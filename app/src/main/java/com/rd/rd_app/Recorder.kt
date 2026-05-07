@@ -15,6 +15,7 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
+import android.view.WindowManager
 import android.view.TextureView.SurfaceTextureListener
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -545,6 +546,8 @@ private class CameraSession(
     private var captureSession: CameraCaptureSession? = null
     private var mediaRecorder: MediaRecorder? = null
     private var previewSurface: Surface? = null
+    private var sensorOrientation: Int = 0
+    private var lensFacing: Int? = null
 
     private val handlerThread = HandlerThread("cam-$label").apply { start() }
     private val handler = Handler(handlerThread.looper)
@@ -579,6 +582,11 @@ private class CameraSession(
             previewSurface = Surface(surfaceTexture)
 
             val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            // Cache sensor orientation and lens facing for rotation hint
+            val chars = manager.getCameraCharacteristics(cameraId)
+            sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+            lensFacing = chars.get(CameraCharacteristics.LENS_FACING)
+
             manager.openCamera(cameraId, object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
                     cameraDevice = camera
@@ -640,6 +648,23 @@ private class CameraSession(
                 setVideoFrameRate(30)
                 setVideoEncodingBitRate(bitRate)
                 setAudioEncodingBitRate(128_000)
+
+                // Set orientation hint to correct rotation
+                val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                val displayRotation = windowManager.defaultDisplay.rotation
+                val degrees = when (displayRotation) {
+                    Surface.ROTATION_90 -> 90
+                    Surface.ROTATION_180 -> 180
+                    Surface.ROTATION_270 -> 270
+                    else -> 0
+                }
+                val orientationHint = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
+                    (sensorOrientation + degrees) % 360
+                } else {
+                    (sensorOrientation - degrees + 360) % 360
+                }
+                setOrientationHint(orientationHint)
+
                 prepare()
             }
             mediaRecorder = mr
