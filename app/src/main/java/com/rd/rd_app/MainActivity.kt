@@ -53,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -116,7 +117,13 @@ fun Rd_appApp() {
     var loggedInUsername by rememberSaveable { mutableStateOf(ConfigManager.savedUsername) }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showRecorder by rememberSaveable { mutableStateOf(false) }
-    val messages = remember { mutableStateListOf<ChatMessage>() }
+    val messages = remember { mutableStateListOf<ChatMessage>().also { it.addAll(ConfigManager.loadMessages()) } }
+
+    // Auto-save messages whenever they change
+    LaunchedEffect(Unit) {
+        snapshotFlow { messages.toList() }
+            .collect { ConfigManager.saveMessages(it) }
+    }
 
     if (showRecorder) {
         DualRecorderScreen(onExit = { showRecorder = false })
@@ -186,6 +193,7 @@ object ConfigManager {
     private const val KEY_MODEL_NAME = "model_name"
     private const val KEY_LOGGED_USER = "logged_user"
     private const val KEY_LOGIN_TIME = "login_time"
+    private const val KEY_CHAT_MESSAGES = "chat_messages"
     private const val LOGIN_VALID_DAYS = 7L
 
     private lateinit var prefs: SharedPreferences
@@ -235,6 +243,32 @@ object ConfigManager {
             .putString(KEY_LOGGED_USER, "")
             .putLong(KEY_LOGIN_TIME, 0L)
             .apply()
+    }
+
+    // ── Chat message persistence ──
+
+    fun saveMessages(messages: List<ChatMessage>) {
+        val json = JSONArray()
+        for (msg in messages) {
+            val obj = JSONObject()
+            obj.put("text", msg.text)
+            obj.put("isUser", msg.isUser)
+            json.put(obj)
+        }
+        prefs.edit().putString(KEY_CHAT_MESSAGES, json.toString()).apply()
+    }
+
+    fun loadMessages(): List<ChatMessage> {
+        val jsonStr = prefs.getString(KEY_CHAT_MESSAGES, null) ?: return emptyList()
+        return try {
+            val json = JSONArray(jsonStr)
+            (0 until json.length()).map { i ->
+                val obj = json.getJSONObject(i)
+                ChatMessage(obj.getString("text"), obj.getBoolean("isUser"))
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 }
 
@@ -480,6 +514,15 @@ private fun ConfigInfoRow(label: String, value: String) {
 
 data class ChatMessage(val text: String, val isUser: Boolean)
 
+private const val MAX_MESSAGES = 100
+
+private fun <T> MutableList<T>.addAndTrim(element: T) {
+    add(element)
+    while (size > MAX_MESSAGES) {
+        removeAt(0)
+    }
+}
+
 @Composable
 fun ChatPage(messages: MutableList<ChatMessage>, modifier: Modifier = Modifier) {
     var inputText by rememberSaveable { mutableStateOf("") }
@@ -489,7 +532,7 @@ fun ChatPage(messages: MutableList<ChatMessage>, modifier: Modifier = Modifier) 
 
     LaunchedEffect(Unit) {
         if (messages.isEmpty()) {
-            messages.add(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
+            messages.addAndTrim(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
         }
     }
 
@@ -535,7 +578,7 @@ fun ChatPage(messages: MutableList<ChatMessage>, modifier: Modifier = Modifier) 
                     onClick = {
                         if (inputText.isNotBlank() && !isLoading) {
                             val userMsg = inputText.trim()
-                            messages.add(ChatMessage(userMsg, true))
+                            messages.addAndTrim(ChatMessage(userMsg, true))
                             inputText = ""
                             isLoading = true
 
@@ -547,9 +590,9 @@ fun ChatPage(messages: MutableList<ChatMessage>, modifier: Modifier = Modifier) 
                                     conversation = messages.toList()
                                 )
                                 if (reply != null) {
-                                    messages.add(ChatMessage(reply, false))
+                                    messages.addAndTrim(ChatMessage(reply, false))
                                 } else {
-                                    messages.add(ChatMessage("请求失败，请检查模型配置和网络连接", false))
+                                    messages.addAndTrim(ChatMessage("请求失败，请检查模型配置和网络连接", false))
                                 }
                                 isLoading = false
                             }
