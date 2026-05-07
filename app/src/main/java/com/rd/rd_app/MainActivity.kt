@@ -116,6 +116,7 @@ fun Rd_appApp() {
     var loggedInUsername by rememberSaveable { mutableStateOf(ConfigManager.savedUsername) }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showRecorder by rememberSaveable { mutableStateOf(false) }
+    val messages = remember { mutableStateListOf<ChatMessage>() }
 
     if (showRecorder) {
         DualRecorderScreen(onExit = { showRecorder = false })
@@ -148,6 +149,7 @@ fun Rd_appApp() {
         ) {
             when (currentDestination) {
                 AppDestinations.HOME -> ChatPage(
+                    messages = messages,
                     modifier = Modifier.fillMaxSize()
                 )
                 AppDestinations.CONFIG -> ConfigPage(
@@ -479,15 +481,16 @@ private fun ConfigInfoRow(label: String, value: String) {
 data class ChatMessage(val text: String, val isUser: Boolean)
 
 @Composable
-fun ChatPage(modifier: Modifier = Modifier) {
-    val messages = remember { mutableStateListOf<ChatMessage>() }
+fun ChatPage(messages: MutableList<ChatMessage>, modifier: Modifier = Modifier) {
     var inputText by rememberSaveable { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        messages.add(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
+        if (messages.isEmpty()) {
+            messages.add(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
+        }
     }
 
     LaunchedEffect(messages.size) {
