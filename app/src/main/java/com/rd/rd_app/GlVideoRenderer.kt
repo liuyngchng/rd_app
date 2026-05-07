@@ -9,8 +9,8 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
 /**
- * Renders camera frames (from a SurfaceTexture) with a timestamp text overlay
- * to an output Surface (typically MediaRecorder's input surface).
+ * 在录制的视频中添加一个时间戳，格式:
+ * YYYY-mm-DD HH:MM:SS
  */
 class GlVideoRenderer(
     private val outputSurface: Surface,
