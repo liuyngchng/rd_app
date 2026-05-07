@@ -313,9 +313,7 @@ class GlVideoRenderer(
             varying vec2 vTexCoord;
             uniform sampler2D sTexture;
             void main() {
-                // Flip Y: GLUtils.texImage2D uploads Canvas bitmap top-down,
-                // but OpenGL texture origin is bottom-left
-                gl_FragColor = texture2D(sTexture, vec2(vTexCoord.x, 1.0 - vTexCoord.y));
+                gl_FragColor = texture2D(sTexture, vTexCoord);
             }
         """
 
