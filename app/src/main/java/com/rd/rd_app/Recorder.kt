@@ -15,7 +15,6 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
-import android.view.WindowManager
 import android.view.TextureView.SurfaceTextureListener
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -184,8 +183,8 @@ fun DualRecorderScreen(onExit: () -> Unit) {
         val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val rearFile = File(recorderDir, "REAR_${ts}.mp4")
         val frontFile = File(recorderDir, "FRONT_${ts}.mp4")
-        rearRef.value?.startRecording(rearFile)
-        frontRef.value?.startRecording(frontFile)
+        rearRef.value?.startRecording(rearFile) { currentTimeText }
+        frontRef.value?.startRecording(frontFile) { currentTimeText }
         pendingGalleryFiles.addAll(listOf(rearFile, frontFile))
         refreshFileCount()
     }
@@ -548,6 +547,9 @@ private class CameraSession(
     private var previewSurface: Surface? = null
     private var sensorOrientation: Int = 0
     private var lensFacing: Int? = null
+    private var glRenderer: GlVideoRenderer? = null
+    private var renderThread: Thread? = null
+    @Volatile private var isRecordingVideo = false
 
     private val handlerThread = HandlerThread("cam-$label").apply { start() }
     private val handler = Handler(handlerThread.looper)
@@ -632,9 +634,10 @@ private class CameraSession(
         }
     }
 
-    fun startRecording(file: File) {
+    fun startRecording(file: File, timestampSupplier: () -> String = { "" }) {
         val device = cameraDevice ?: return
         val previewSurf = previewSurface ?: return
+        isRecordingVideo = true
 
         try {
             val mr = MediaRecorder().apply {
@@ -644,60 +647,106 @@ private class CameraSession(
                 setOutputFile(file.absolutePath)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setVideoSize(1280, 720)
+                setVideoSize(720, 1280)
                 setVideoFrameRate(30)
                 setVideoEncodingBitRate(bitRate)
                 setAudioEncodingBitRate(128_000)
 
-                // Set orientation hint to correct rotation
-                val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                val displayRotation = windowManager.defaultDisplay.rotation
-                val degrees = when (displayRotation) {
-                    Surface.ROTATION_90 -> 90
-                    Surface.ROTATION_180 -> 180
-                    Surface.ROTATION_270 -> 270
-                    else -> 0
-                }
-                val orientationHint = if (lensFacing == CameraCharacteristics.LENS_FACING_FRONT) {
-                    (sensorOrientation + degrees) % 360
-                } else {
-                    (sensorOrientation - degrees + 360) % 360
-                }
-                setOrientationHint(orientationHint)
+                // Rotation is baked into the GL-rendered frames, no metadata rotation needed
+                setOrientationHint(0)
 
                 prepare()
             }
             mediaRecorder = mr
 
-            val recorderSurface = mr.surface
-            device.createCaptureSession(listOf(previewSurf, recorderSurface),
-                object : CameraCaptureSession.StateCallback() {
-                    override fun onConfigured(session: CameraCaptureSession) {
-                        captureSession = session
-                        val req = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-                            ?.apply {
-                                addTarget(previewSurf)
-                                addTarget(recorderSurface)
-                            }?.build()
-                        if (req != null) {
-                            session.setRepeatingRequest(req, null, handler)
-                            mr.start()
-                            Log.d("DualRecorder", "$label recording: ${file.name}")
-                        }
+            // ── GL renderer: composites camera frames + timestamp overlay ──
+            val renderer = GlVideoRenderer(mr.surface, 720, 1280, 1280, 720)
+            val frameSemaphore = java.util.concurrent.Semaphore(0)
+
+            renderThread = Thread {
+                var inputSurface: Surface? = null
+                try {
+                    val inputSt = renderer.initialize()
+                    inputSurface = Surface(inputSt)
+
+                    inputSt.setOnFrameAvailableListener {
+                        if (isRecordingVideo) frameSemaphore.release()
                     }
 
-                    override fun onConfigureFailed(session: CameraCaptureSession) {
-                        Log.e("DualRecorder", "$label record session failed")
-                        try { mr.release() } catch (_: Exception) {}
-                        mediaRecorder = null
+                    // Camera → [preview display + renderer] → MediaRecorder
+                    val latch = java.util.concurrent.CountDownLatch(1)
+                    var sessionOk = false
+
+                    device.createCaptureSession(listOf(previewSurf, inputSurface),
+                        object : CameraCaptureSession.StateCallback() {
+                            override fun onConfigured(session: CameraCaptureSession) {
+                                captureSession = session
+                                val req = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+                                    ?.apply {
+                                        addTarget(previewSurf)
+                                        addTarget(inputSurface)
+                                    }?.build()
+                                if (req != null) {
+                                    session.setRepeatingRequest(req, null, this@CameraSession.handler)
+                                    mr.start()
+                                    sessionOk = true
+                                    Log.d("DualRecorder", "$label recording: ${file.name}")
+                                }
+                                latch.countDown()
+                            }
+
+                            override fun onConfigureFailed(session: CameraCaptureSession) {
+                                Log.e("DualRecorder", "$label record session failed")
+                                try { mr.release() } catch (_: Exception) {}
+                                this@CameraSession.mediaRecorder = null
+                                latch.countDown()
+                            }
+                        }, this@CameraSession.handler)
+
+                    latch.await()
+
+                    // Render loop: draw each camera frame with timestamp overlay
+                    while (isRecordingVideo && sessionOk) {
+                        try {
+                            frameSemaphore.acquire()
+                        } catch (_: InterruptedException) {
+                            break
+                        }
+                        if (!isRecordingVideo) break
+                        renderer.drawFrame(timestampSupplier())
                     }
-                }, handler)
+                } catch (e: Exception) {
+                    Log.e("DualRecorder", "$label GL render error", e)
+                } finally {
+                    renderer.close()
+                    try { inputSurface?.release() } catch (_: Exception) {}
+                }
+            }.apply {
+                name = "gl-cam-$label"
+                isDaemon = true
+                start()
+            }
+            glRenderer = renderer
+
         } catch (e: Exception) {
+            isRecordingVideo = false
             Log.e("DualRecorder", "$label startRecording error", e)
         }
     }
 
     fun stopRecording() {
+        isRecordingVideo = false
+        // Close recording capture session first (stops camera from sending to renderer)
+        try { captureSession?.close() } catch (_: Exception) {}
+        captureSession = null
+
+        // Interrupt and join render thread (it closes the GL renderer internally)
+        renderThread?.interrupt()
+        renderThread?.join(2000)
+        renderThread = null
+        glRenderer = null
+
+        // Stop and release MediaRecorder
         try {
             mediaRecorder?.apply {
                 try { stop() } catch (_: Exception) {}
@@ -705,6 +754,7 @@ private class CameraSession(
             }
         } catch (_: Exception) {}
         mediaRecorder = null
+
         // Restart preview-only session
         val surf = previewSurface ?: return
         val device = cameraDevice ?: return
@@ -723,9 +773,15 @@ private class CameraSession(
     }
 
     fun release() {
+        isRecordingVideo = false
+        try { captureSession?.close() } catch (_: Exception) {}
+        captureSession = null
+        renderThread?.interrupt()
+        renderThread?.join(2000)
+        renderThread = null
+        glRenderer = null
         try { mediaRecorder?.apply { try { stop() } catch (_: Exception) {}; release() } } catch (_: Exception) {}
         mediaRecorder = null
-        try { captureSession?.close() } catch (_: Exception) {}
         try { cameraDevice?.close() } catch (_: Exception) {}
         captureSession = null
         cameraDevice = null
