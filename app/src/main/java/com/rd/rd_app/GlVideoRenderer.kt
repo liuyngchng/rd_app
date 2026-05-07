@@ -9,16 +9,19 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
 /**
- * 在录制的视频中添加一个时间戳，格式:
- * YYYY-mm-DD HH:MM:SS
+ * Renders camera frames with a timestamp text overlay to a MediaRecorder input Surface.
+ *
+ * The camera writes to a landscape SurfaceTexture. [rotationDegrees] specifies
+ * how much to rotate the camera frame counter-clockwise so the final video is upright.
+ * Typically [rotationDegrees]=sensorOrientation (e.g. 90 for most back cameras).
  */
 class GlVideoRenderer(
     private val outputSurface: Surface,
     private val outputWidth: Int,
     private val outputHeight: Int,
-    /** Camera sensor native dimensions (before rotation). Usually 1280x720. */
     private val cameraWidth: Int = 1280,
-    private val cameraHeight: Int = 720
+    private val cameraHeight: Int = 720,
+    private val rotationDegrees: Int = 90
 ) : AutoCloseable {
 
     private var eglDisplay: EGLDisplay? = null
@@ -36,9 +39,8 @@ class GlVideoRenderer(
     private var lastText = ""
     private var textBitmapWidth = 0
     private var textBitmapHeight = 0
-    private val transformMatrix = FloatArray(16)
 
-    // ── Pre-allocated quad geometry ──
+    // ── Vertex geometry (full-screen quad) ──
     private val quadVerts: FloatBuffer = floatBuffer(
         -1f, -1f, 0f,
          1f, -1f, 0f,
@@ -65,7 +67,6 @@ class GlVideoRenderer(
 
     // ── Initialisation ──
 
-    /** Initialise EGL + GL resources and return the SurfaceTexture for the camera to write to. */
     fun initialize(): SurfaceTexture {
         eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         check(eglDisplay != EGL14.EGL_NO_DISPLAY) { "eglGetDisplay failed" }
@@ -84,7 +85,6 @@ class GlVideoRenderer(
 
         EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)
 
-        // External texture (camera input)
         externalTextureId = createExternalTexture()
         frameSurfaceTexture = SurfaceTexture(externalTextureId).also {
             it.setDefaultBufferSize(cameraWidth, cameraHeight)
@@ -92,8 +92,6 @@ class GlVideoRenderer(
 
         cameraProgram = createProgram(CAMERA_VERTEX_SHADER, CAMERA_FRAGMENT_SHADER)
         textProgram = createProgram(TEXT_VERTEX_SHADER, TEXT_FRAGMENT_SHADER)
-
-        // Blank text texture placeholder
         textTextureId = createEmptyTexture()
 
         EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
@@ -102,7 +100,6 @@ class GlVideoRenderer(
 
     // ── Per-frame rendering ──
 
-    /** Render the latest camera frame with [timestampText] overlaid. */
     fun drawFrame(timestampText: String) {
         val dpy = eglDisplay ?: return
         val surf = eglSurface ?: return
@@ -111,10 +108,9 @@ class GlVideoRenderer(
         EGL14.eglMakeCurrent(dpy, surf, surf, ctx)
         GLES20.glViewport(0, 0, outputWidth, outputHeight)
 
-        // Grab the latest camera frame into the external texture
+        // Grab latest camera frame
         val st = frameSurfaceTexture ?: return
         st.updateTexImage()
-        st.getTransformMatrix(transformMatrix)
 
         // ── Pass 1: camera frame ──
         GLES20.glClearColor(0f, 0f, 0f, 1f)
@@ -123,8 +119,8 @@ class GlVideoRenderer(
 
         val aPos = GLES20.glGetAttribLocation(cameraProgram, "aPosition")
         val aTex = GLES20.glGetAttribLocation(cameraProgram, "aTexCoord")
-        val uMatrix = GLES20.glGetUniformLocation(cameraProgram, "uTransform")
-        GLES20.glUniformMatrix4fv(uMatrix, 1, false, transformMatrix, 0)
+        val uRot = GLES20.glGetUniformLocation(cameraProgram, "uDegrees")
+        GLES20.glUniform1i(uRot, rotationDegrees)
 
         GLES20.glEnableVertexAttribArray(aPos)
         GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 0, quadVerts)
@@ -149,23 +145,20 @@ class GlVideoRenderer(
             GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
             GLES20.glUseProgram(textProgram)
 
-            // Text quad dimensions in GL coordinates (-1..1 space)
             val glW = (textBitmapWidth.toFloat() / outputWidth.toFloat()) * 2f
             val glH = (textBitmapHeight.toFloat() / outputHeight.toFloat()) * 2f
-            // Padding from top edge (~20px)
             val padTop = (20f / outputHeight.toFloat()) * 2f
 
-            // Top-centre position
             val left = -glW / 2f
             val right = glW / 2f
             val top = 1f - padTop
             val bottom = top - glH
 
             val tv = floatBuffer(
-                 left,  bottom, 0f,   // bottom-left
-                 right, bottom, 0f,   // bottom-right
-                 left,  top,    0f,   // top-left
-                 right, top,    0f,   // top-right
+                 left,  bottom, 0f,
+                 right, bottom, 0f,
+                 left,  top,    0f,
+                 right, top,    0f,
             )
 
             val aPos2 = GLES20.glGetAttribLocation(textProgram, "aPosition")
@@ -246,7 +239,6 @@ class GlVideoRenderer(
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-        // 1x1 transparent pixel
         val pixel = ByteBuffer.allocateDirect(4).put(byteArrayOf(0, 0, 0, 0)).also { it.position(0) }
         GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 1, 1, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixel)
         return id
@@ -268,7 +260,6 @@ class GlVideoRenderer(
         val h = bounds.height() + 48
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
-        // Transparent background
         c.drawColor(Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
         c.drawText(text, 24f, h - 20f, textPaint)
         return bmp
@@ -287,6 +278,26 @@ class GlVideoRenderer(
             }
         """
 
+        private const val CAMERA_FRAGMENT_SHADER = """
+            #extension GL_OES_EGL_image_external : require
+            precision mediump float;
+            varying vec2 vTexCoord;
+            uniform samplerExternalOES sTexture;
+            uniform int uDegrees;
+            void main() {
+                vec2 uv = vTexCoord;
+                // Rotate texture coords CCW by uDegrees (0 / 90 / 180 / 270)
+                if (uDegrees == 90) {
+                    uv = vec2(uv.y, 1.0 - uv.x);
+                } else if (uDegrees == 180) {
+                    uv = vec2(1.0 - uv.x, 1.0 - uv.y);
+                } else if (uDegrees == 270) {
+                    uv = vec2(1.0 - uv.y, uv.x);
+                }
+                gl_FragColor = texture2D(sTexture, uv);
+            }
+        """
+
         private const val TEXT_VERTEX_SHADER = """
             attribute vec4 aPosition;
             attribute vec2 aTexCoord;
@@ -297,23 +308,11 @@ class GlVideoRenderer(
             }
         """
 
-        private const val CAMERA_FRAGMENT_SHADER = """
-            #extension GL_OES_EGL_image_external : require
-            precision mediump float;
-            varying vec2 vTexCoord;
-            uniform samplerExternalOES sTexture;
-            uniform mat4 uTransform;
-            void main() {
-                gl_FragColor = texture2D(sTexture, (uTransform * vec4(vTexCoord, 0.0, 1.0)).xy);
-            }
-        """
-
         private const val TEXT_FRAGMENT_SHADER = """
             precision mediump float;
             varying vec2 vTexCoord;
             uniform sampler2D sTexture;
             void main() {
-                // Flip Y because GLUtils.texImage2D uploads Canvas bitmap top-down
                 gl_FragColor = texture2D(sTexture, vec2(vTexCoord.x, 1.0 - vTexCoord.y));
             }
         """

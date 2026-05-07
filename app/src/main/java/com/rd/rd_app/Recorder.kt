@@ -660,7 +660,7 @@ private class CameraSession(
             mediaRecorder = mr
 
             // ── GL renderer: composites camera frames + timestamp overlay ──
-            val renderer = GlVideoRenderer(mr.surface, 720, 1280, 1280, 720)
+            val renderer = GlVideoRenderer(mr.surface, 720, 1280, 1280, 720, sensorOrientation)
             val frameSemaphore = java.util.concurrent.Semaphore(0)
 
             renderThread = Thread {
