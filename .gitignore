@@ -77,6 +77,7 @@ app/google-services.json
 app/src/debug/google-services.json
 app/src/release/google-services.json
 app/src/main/assets/*
+# 资源文件，可能会较大
 **/assets/*
 
 # Firebase

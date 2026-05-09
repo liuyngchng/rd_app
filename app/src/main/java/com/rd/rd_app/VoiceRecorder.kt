@@ -50,6 +50,7 @@ class VoiceRecorder {
     /**
      * Start recording and speech recognition.
      */
+    @Synchronized
     fun startRecording() {
         if (isRecording) return
         val mModel = model ?: run {

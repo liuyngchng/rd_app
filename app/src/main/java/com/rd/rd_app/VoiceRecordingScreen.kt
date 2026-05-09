@@ -42,6 +42,7 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
 
     var isRecording by remember { mutableStateOf(false) }
     var isInitialized by remember { mutableStateOf(false) }
+    var isInitializing by remember { mutableStateOf(false) }
     var partialText by remember { mutableStateOf("") }
     var accumulatedText by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -57,8 +58,24 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
     ) { granted ->
         if (granted) {
             // Permission granted, start initializing
-            initializeAndStart(context, recorder, onError = { errorMessage = it }) {
-                isInitialized = true
+            isInitializing = true
+            scope.launch {
+                try {
+                    initializeAndStart(context, recorder,
+                        onError = {
+                            errorMessage = it
+                            isInitializing = false
+                        },
+                        onReady = {
+                            isInitialized = true
+                            isRecording = true
+                            isInitializing = false
+                        }
+                    )
+                } catch (e: Throwable) {
+                    errorMessage = "初始化失败: ${e.message}"
+                    isInitializing = false
+                }
             }
         } else {
             errorMessage = "需要录音权限才能使用录音功能"
@@ -112,6 +129,8 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
+            Spacer(Modifier.height(12.dp))
+
             // ── Top bar ──
             Surface(
                 color = MaterialTheme.colorScheme.surface,
@@ -287,9 +306,10 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                                     recorder.stopRecording()
                                 }
                                 isRecording = false
+                                isInitializing = false
                                 Toast.makeText(context, "录音已停止", Toast.LENGTH_SHORT).show()
                             }
-                        } else {
+                        } else if (!isInitializing) {
                             // Check permission and start
                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
                                 != PackageManager.PERMISSION_GRANTED
@@ -299,17 +319,37 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                             }
 
                             if (!isInitialized) {
-                                initializeAndStart(context, recorder, onError = { errorMessage = it }) {
-                                    isInitialized = true
+                                isInitializing = true
+                                scope.launch {
+                                    try {
+                                        initializeAndStart(context, recorder,
+                                            onError = {
+                                                errorMessage = it
+                                                isInitializing = false
+                                            },
+                                            onReady = {
+                                                isInitialized = true
+                                                isRecording = true
+                                                isInitializing = false
+                                            }
+                                        )
+                                    } catch (e: Throwable) {
+                                        errorMessage = "初始化失败: ${e.message}"
+                                        isInitializing = false
+                                    }
                                 }
                             } else {
                                 scope.launch {
-                                    withContext(Dispatchers.IO) {
-                                        recorder.startRecording()
+                                    try {
+                                        withContext(Dispatchers.IO) {
+                                            recorder.startRecording()
+                                        }
+                                        isRecording = true
+                                        isSaved = false
+                                        savedFilePath = null
+                                    } catch (e: Exception) {
+                                        errorMessage = "启动录音失败: ${e.message}"
                                     }
-                                    isRecording = true
-                                    isSaved = false
-                                    savedFilePath = null
                                 }
                             }
                         }
@@ -344,26 +384,25 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
 
 /**
  * Initialize VoiceRecorder on IO thread and start recording.
+ * Caller must launch this in its own coroutine scope (e.g. composable scope).
  */
-private fun initializeAndStart(
+private suspend fun initializeAndStart(
     context: Context,
     recorder: VoiceRecorder,
     onError: (String) -> Unit,
     onReady: () -> Unit
 ) {
-    kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
-        try {
-            withContext(Dispatchers.IO) {
-                recorder.init(context)
-            }
-            withContext(Dispatchers.IO) {
-                recorder.startRecording()
-            }
-            onReady()
-            Toast.makeText(context, "开始录音", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            onError("初始化失败: ${e.message}")
+    try {
+        withContext(Dispatchers.IO) {
+            recorder.init(context)
         }
+        withContext(Dispatchers.IO) {
+            recorder.startRecording()
+        }
+        onReady()
+        Toast.makeText(context, "开始录音", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        onError("初始化失败: ${e.message}")
     }
 }
 
