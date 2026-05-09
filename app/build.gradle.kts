@@ -58,8 +58,10 @@ android {
     buildToolsVersion = "37.0.0"
     ndkVersion = "29.0.14206865"
 
-    nativeLibrary {
-        align16Kb = true
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
 }
