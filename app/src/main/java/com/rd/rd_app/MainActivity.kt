@@ -117,6 +117,7 @@ fun Rd_appApp() {
     var loggedInUsername by rememberSaveable { mutableStateOf(ConfigManager.savedUsername) }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showRecorder by rememberSaveable { mutableStateOf(false) }
+    var showVoiceRecorder by rememberSaveable { mutableStateOf(false) }
     val messages = remember { mutableStateListOf<ChatMessage>().also { it.addAll(ConfigManager.loadMessages()) } }
 
     // Auto-save messages whenever they change
@@ -125,8 +126,10 @@ fun Rd_appApp() {
             .collect { ConfigManager.saveMessages(it) }
     }
 
-    if (showRecorder) {
-        DualRecorderScreen(onExit = { showRecorder = false })
+    if (showVoiceRecorder) {
+        VoiceRecordingScreen(onExit = { showVoiceRecorder = false })
+    } else if (showRecorder) {
+        VideoRecordingScreen(onExit = { showRecorder = false })
     } else if (!isLoggedIn) {
         LoginPage(
             onLoginSuccess = { username ->
@@ -170,6 +173,7 @@ fun Rd_appApp() {
                         currentDestination = AppDestinations.HOME
                     },
                     onStartRecorder = { showRecorder = true },
+                    onStartVoiceRecorder = { showVoiceRecorder = true },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -699,7 +703,7 @@ fun ChatBubble(message: ChatMessage) {
 }
 
 @Composable
-fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> Unit = {}, modifier: Modifier = Modifier) {
+fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> Unit = {}, onStartVoiceRecorder: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
 
@@ -826,6 +830,13 @@ fun ProfilePage(username: String, onLogout: () -> Unit, onStartRecorder: () -> U
                     onClick = {
                         showMenu = false
                         onStartRecorder()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("录音转文字") },
+                    onClick = {
+                        showMenu = false
+                        onStartVoiceRecorder()
                     }
                 )
             }
