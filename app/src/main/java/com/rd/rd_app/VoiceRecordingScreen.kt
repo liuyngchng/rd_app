@@ -36,6 +36,10 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
+
+/**
+ * 语音转文本页面
+ */
 @Composable
 fun VoiceRecordingScreen(onExit: () -> Unit) {
     val context = LocalContext.current
