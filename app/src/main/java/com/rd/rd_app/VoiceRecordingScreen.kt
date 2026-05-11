@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,6 +57,7 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
     var showFileList by remember { mutableStateOf(false) }
     var selectedFileContent by remember { mutableStateOf<String?>(null) }
     var selectedFileName by remember { mutableStateOf("") }
+    var selectedFilePath by remember { mutableStateOf<String?>(null) }
     var fileList by remember { mutableStateOf<List<File>>(emptyList()) }
 
     // Load file list when switching to file browser
@@ -208,7 +210,9 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                         if (showFileList && selectedFileContent != null) {
                             // File content viewer: share button
                             TextButton(onClick = {
-                                shareFile(context, selectedFileName, selectedFileContent ?: "")
+                                selectedFilePath?.let { path ->
+                                    shareFile(context, path)
+                                }
                             }) {
                                 Text("分享", fontSize = 14.sp)
                             }
@@ -326,7 +330,12 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(fileList) { file ->
-                                val fileSizeMb = file.length() / (1024.0 * 1024.0)
+                                val fileSizeBytes = file.length()
+                                val fileSizeDisplay = if (fileSizeBytes < 1024 * 1024) {
+                                    "%.2f KB".format(fileSizeBytes / 1024.0)
+                                } else {
+                                    "%.2f MB".format(fileSizeBytes / (1024.0 * 1024.0))
+                                }
                                 Surface(
                                     onClick = {
                                         scope.launch {
@@ -334,6 +343,7 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                                                 try {
                                                     selectedFileContent = file.readText()
                                                     selectedFileName = file.name
+                                                    selectedFilePath = file.absolutePath
                                                 } catch (e: Exception) {
                                                     withContext(Dispatchers.Main) {
                                                         errorMessage = "读取文件失败: ${e.message}"
@@ -362,7 +372,7 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                                             )
                                             Spacer(Modifier.height(2.dp))
                                             Text(
-                                                text = "%.2f MB".format(fileSizeMb),
+                                                text = fileSizeDisplay,
                                                 fontSize = 13.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -625,13 +635,25 @@ private fun getTranscriptsDir(context: Context): File? {
 }
 
 /**
- * Share file content via Android share sheet (supports WeChat, email, etc.).
+ * Share a text file via Android share sheet using FileProvider,
+ * so the actual .txt file is sent to other apps (not just the text content).
  */
-private fun shareFile(context: Context, fileName: String, content: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, content)
-        putExtra(Intent.EXTRA_SUBJECT, fileName)
+private fun shareFile(context: Context, filePath: String) {
+    try {
+        val file = File(filePath)
+        val uri = FileProvider.getUriForFile(
+            context,
+            context.packageName + ".fileprovider",
+            file
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, file.name)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "分享到"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "分享失败: ${e.message}", Toast.LENGTH_LONG).show()
     }
-    context.startActivity(Intent.createChooser(intent, "分享到"))
 }
