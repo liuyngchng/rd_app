@@ -58,6 +58,10 @@ android {
     buildToolsVersion = "37.0.0"
     ndkVersion = "29.0.14206865"
 
+    aaptOptions {
+        noCompress("mdl", "fst", "int", "conf", "mat", "dubm", "ie", "stats")
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
