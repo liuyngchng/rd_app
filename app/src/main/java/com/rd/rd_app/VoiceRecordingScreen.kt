@@ -152,66 +152,77 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                 color = MaterialTheme.colorScheme.surface,
                 shadowElevation = 2.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (showFileList && selectedFileContent != null) {
-                        TextButton(onClick = { selectedFileContent = null }) {
-                            Text("← 返回列表", fontSize = 16.sp)
-                        }
-                    } else if (showFileList) {
-                        TextButton(onClick = { showFileList = false }) {
-                            Text("← 返回录音", fontSize = 16.sp)
-                        }
-                    } else {
-                        TextButton(onClick = {
-                            if (recorder.isRecordingActive) {
-                                recorder.stopRecording()
-                            }
-                            recorder.release()
-                            onExit()
-                        }) {
-                            Text("← 返回", fontSize = 16.sp)
-                        }
+                Column {
+                    // ── Row 1: Title only (centered, all modes) ──
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (showFileList && selectedFileContent != null) selectedFileName
+                                   else if (showFileList) "录音文件"
+                                   else "录音转文字",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    Spacer(Modifier.weight(1f))
-
-                    Text(
-                        text = if (showFileList && selectedFileContent != null) selectedFileName
-                               else if (showFileList) "录音文件"
-                               else "录音转文字",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(Modifier.weight(1f))
-
-                    if (!showFileList) {
-                        // Save button (only when transcript exists)
-                        if (accumulatedText.isNotBlank() && !isSaved) {
+                    // ── Row 2: Back button (left) + actions (right) ──
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Back button (all modes)
+                        if (showFileList && selectedFileContent != null) {
+                            TextButton(onClick = { selectedFileContent = null }) {
+                                Text("← 返回列表", fontSize = 15.sp)
+                            }
+                        } else if (showFileList) {
+                            TextButton(onClick = { showFileList = false }) {
+                                Text("← 返回录音", fontSize = 15.sp)
+                            }
+                        } else {
                             TextButton(onClick = {
-                                scope.launch {
-                                    val path = saveTranscript(context, accumulatedText)
-                                    if (path != null) {
-                                        savedFilePath = path
-                                        isSaved = true
-                                        Toast.makeText(context, "已保存到: $path", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
-                                    }
+                                if (recorder.isRecordingActive) {
+                                    recorder.stopRecording()
                                 }
+                                recorder.release()
+                                onExit()
                             }) {
-                                Text("保存", fontSize = 16.sp)
+                                Text("← 返回", fontSize = 15.sp)
                             }
                         }
-                        TextButton(onClick = {
-                            showFileList = true
-                        }) {
-                            Text("浏览文件", fontSize = 16.sp)
+
+                        Spacer(Modifier.weight(1f))
+
+                        // Action buttons (recording mode only, right-aligned)
+                        if (!showFileList) {
+                            TextButton(onClick = {
+                                showFileList = true
+                            }) {
+                                Text("浏览文件", fontSize = 14.sp)
+                            }
+                            if (accumulatedText.isNotBlank() && !isSaved) {
+                                Spacer(Modifier.width(4.dp))
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        val path = saveTranscript(context, accumulatedText)
+                                        if (path != null) {
+                                            savedFilePath = path
+                                            isSaved = true
+                                            Toast.makeText(context, "已保存到: $path", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "保存失败", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }) {
+                                    Text("保存", fontSize = 14.sp)
+                                }
+                            }
                         }
                     }
                 }
