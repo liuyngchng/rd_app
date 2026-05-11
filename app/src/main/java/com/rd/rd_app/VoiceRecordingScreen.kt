@@ -2,6 +2,7 @@ package com.rd.rd_app
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
@@ -199,8 +200,16 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
 
                         Spacer(Modifier.weight(1f))
 
-                        // Action buttons (recording mode only, right-aligned)
-                        if (!showFileList) {
+                        // Right-aligned buttons
+                        if (showFileList && selectedFileContent != null) {
+                            // File content viewer: share button
+                            TextButton(onClick = {
+                                shareFile(context, selectedFileName, selectedFileContent ?: "")
+                            }) {
+                                Text("分享", fontSize = 14.sp)
+                            }
+                        } else if (!showFileList) {
+                            // Recording mode: browse + save buttons
                             TextButton(onClick = {
                                 showFileList = true
                             }) {
@@ -609,4 +618,16 @@ private fun getTranscriptsDir(context: Context): File? {
     } else {
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
     }
+}
+
+/**
+ * Share file content via Android share sheet (supports WeChat, email, etc.).
+ */
+private fun shareFile(context: Context, fileName: String, content: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, content)
+        putExtra(Intent.EXTRA_SUBJECT, fileName)
+    }
+    context.startActivity(Intent.createChooser(intent, "分享到"))
 }
