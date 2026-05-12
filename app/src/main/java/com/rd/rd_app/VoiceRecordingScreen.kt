@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -59,6 +60,8 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
     var selectedFileName by remember { mutableStateOf("") }
     var selectedFilePath by remember { mutableStateOf<String?>(null) }
     var fileList by remember { mutableStateOf<List<File>>(emptyList()) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var fileToDelete by remember { mutableStateOf<File?>(null) }
 
     // Load file list when switching to file browser
     LaunchedEffect(showFileList) {
@@ -377,11 +380,28 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
-                                        Text(
-                                            text = "查看 →",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
+                                        Row {
+                                            Text(
+                                                text = "查看 →",
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .clickable(enabled = true, onClick = { /* handled by Surface click */ })
+                                            )
+                                            Spacer(Modifier.width(16.dp))
+                                            Text(
+                                                text = "删除",
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .clickable {
+                                                        fileToDelete = file
+                                                        showDeleteConfirmDialog = true
+                                                    }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -571,6 +591,50 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
 
                 Spacer(Modifier.height(8.dp))
             }
+        }
+
+        // ── Delete confirmation dialog ──
+        if (showDeleteConfirmDialog && fileToDelete != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDeleteConfirmDialog = false
+                    fileToDelete = null
+                },
+                title = { Text("确认删除") },
+                text = { Text("确定要删除文件「${fileToDelete?.name}」吗？此操作不可撤销。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val file = fileToDelete
+                        showDeleteConfirmDialog = false
+                        fileToDelete = null
+                        if (file != null) {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    file.delete()
+                                }
+                                // Refresh file list
+                                withContext(Dispatchers.IO) {
+                                    val dir = getTranscriptsDir(context)
+                                    fileList = dir?.listFiles { f -> f.name.endsWith(".txt") }
+                                        ?.sortedByDescending { it.lastModified() }
+                                        ?: emptyList()
+                                }
+                                Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }) {
+                        Text("删除", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirmDialog = false
+                        fileToDelete = null
+                    }) {
+                        Text("取消")
+                    }
+                }
+            )
         }
     }
 }
