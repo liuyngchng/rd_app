@@ -723,31 +723,48 @@ private class CameraSession(
                     val latch = java.util.concurrent.CountDownLatch(1)
                     var sessionOk = false
 
-                    device.createCaptureSession(listOf(previewSurf, inputSurface),
-                        object : CameraCaptureSession.StateCallback() {
-                            override fun onConfigured(session: CameraCaptureSession) {
-                                captureSession = session
-                                val req = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-                                    .apply {
-                                        addTarget(previewSurf)
-                                        addTarget(inputSurface)
-                                    }.build()
-                                if (req != null) {
-                                    session.setRepeatingRequest(req, null, this@CameraSession.handler)
-                                    mr.start()
-                                    sessionOk = true
-                                    Log.d("VideoRecorder", "$label recording: ${file.name}")
-                                }
-                                latch.countDown()
-                            }
+                    val sessionCallback = object : CameraCaptureSession.StateCallback() {
+                        override fun onConfigured(session: CameraCaptureSession) {
+                            captureSession = session
+                            val req = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
+                                .apply {
+                                    addTarget(previewSurf)
+                                    addTarget(inputSurface)
+                                }.build()
+                            session.setRepeatingRequest(req, null, this@CameraSession.handler)
+                            mr.start()
+                            sessionOk = true
+                            Log.d("VideoRecorder", "$label recording: ${file.name}")
+                            latch.countDown()
+                        }
 
-                            override fun onConfigureFailed(session: CameraCaptureSession) {
-                                Log.e("VideoRecorder", "$label record session failed")
-                                try { mr.release() } catch (_: Exception) {}
-                                this@CameraSession.mediaRecorder = null
-                                latch.countDown()
-                            }
-                        }, this@CameraSession.handler)
+                        override fun onConfigureFailed(session: CameraCaptureSession) {
+                            Log.e("VideoRecorder", "$label record session failed")
+                            try { mr.release() } catch (_: Exception) {}
+                            this@CameraSession.mediaRecorder = null
+                            latch.countDown()
+                        }
+                    }
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        val outputConfigs = listOf(
+                            OutputConfiguration(previewSurf),
+                            OutputConfiguration(inputSurface)
+                        )
+                        val sessionConfig = SessionConfiguration(
+                            SessionConfiguration.SESSION_REGULAR,
+                            outputConfigs,
+                            getThreadPoolExecutor(),
+                            sessionCallback
+                        )
+                        device.createCaptureSession(sessionConfig)
+                    } else {
+                        device.createCaptureSession(
+                            listOf(previewSurf, inputSurface),
+                            sessionCallback,
+                            this@CameraSession.handler
+                        )
+                    }
 
                     latch.await()
 
