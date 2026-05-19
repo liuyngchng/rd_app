@@ -237,10 +237,10 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
         var rearOk = false
         suspendCancellableCoroutine<Unit> { cont ->
             rearSession.open(
-                onReady = { rearOk = true; cont.resume(Unit) {} },
+                onReady = { rearOk = true; cont.resume(Unit) },
                 onFail = { err ->
                     errorMsg = err
-                    cont.resume(Unit) {}
+                    cont.resume(Unit)
                 }
             )
         }
@@ -255,12 +255,12 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
 
             suspendCancellableCoroutine<Unit> { cont ->
                 frontSession.open(
-                    onReady = { frontReady = true; cont.resume(Unit) {} },
+                    onReady = { frontReady = true; cont.resume(Unit) },
                     onFail = { err ->
                         Log.w("VideoRecorder", "Front camera unavailable: $err")
                         // Continue with rear only
                         frontRef.value = null
-                        cont.resume(Unit) {}
+                        cont.resume(Unit)
                     }
                 )
             }

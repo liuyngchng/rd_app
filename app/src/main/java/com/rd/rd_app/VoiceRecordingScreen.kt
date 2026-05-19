@@ -45,7 +45,7 @@ import java.util.*
 @Composable
 fun VoiceRecordingScreen(
     onExit: () -> Unit,
-    serverUrl: String = "ws://172.20.10.6:19001",
+    serverUrl: String = "",
     useNetwork: Boolean = true,
 ) {
     val context = LocalContext.current

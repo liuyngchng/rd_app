@@ -43,7 +43,7 @@ class VoiceRecorder {
     var useNetwork: Boolean = true
 
     /** WebSocket 连接的服务端的地址。 */
-    var serverUrl: String = "ws://172.20.10.6:19001"
+    var serverUrl: String = ""
 
     // ── Vosk ──
     private var voskModel: Model? = null

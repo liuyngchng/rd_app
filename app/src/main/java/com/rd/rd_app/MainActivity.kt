@@ -15,6 +15,7 @@ import java.io.File
 import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
 import android.media.MediaScannerConnection
@@ -212,19 +213,19 @@ object ConfigManager {
 
     var apiUrl: String
         get() = prefs.getString(KEY_API_URL, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_API_URL, value).apply()
+        set(value) = prefs.edit { putString(KEY_API_URL, value) }
 
     var apiKey: String
         get() = prefs.getString(KEY_API_KEY, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_API_KEY, value).apply()
+        set(value) = prefs.edit { putString(KEY_API_KEY, value) }
 
     var modelName: String
         get() = prefs.getString(KEY_MODEL_NAME, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_MODEL_NAME, value).apply()
+        set(value) = prefs.edit { putString(KEY_MODEL_NAME, value) }
 
     var asrWsUrl: String
-        get() = prefs.getString(KEY_ASR_WS_URL, "ws://10.0.2.2:19001") ?: "ws://10.0.2.2:19001"
-        set(value) = prefs.edit().putString(KEY_ASR_WS_URL, value).apply()
+        get() = prefs.getString(KEY_ASR_WS_URL, "") ?: ""
+        set(value) = prefs.edit { putString(KEY_ASR_WS_URL, value) }
 
     // ── Login persistence (7-day auto login) ──
 
@@ -243,18 +244,18 @@ object ConfigManager {
 
     /** Save login state (called on successful login) */
     fun saveLogin(username: String) {
-        prefs.edit()
-            .putString(KEY_LOGGED_USER, username)
-            .putLong(KEY_LOGIN_TIME, System.currentTimeMillis())
-            .apply()
+        prefs.edit {
+            putString(KEY_LOGGED_USER, username)
+            putLong(KEY_LOGIN_TIME, System.currentTimeMillis())
+        }
     }
 
     /** Clear login state (called on logout) */
     fun clearLogin() {
-        prefs.edit()
-            .putString(KEY_LOGGED_USER, "")
-            .putLong(KEY_LOGIN_TIME, 0L)
-            .apply()
+        prefs.edit {
+            putString(KEY_LOGGED_USER, "")
+            putLong(KEY_LOGIN_TIME, 0L)
+        }
     }
 
     // ── Chat message persistence ──
@@ -267,7 +268,7 @@ object ConfigManager {
             obj.put("isUser", msg.isUser)
             json.put(obj)
         }
-        prefs.edit().putString(KEY_CHAT_MESSAGES, json.toString()).apply()
+        prefs.edit { putString(KEY_CHAT_MESSAGES, json.toString()) }
     }
 
     fun loadMessages(): List<ChatMessage> {
@@ -294,20 +295,22 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun ConfigPage(modifier: Modifier = Modifier) {
-    val hasConfig = ConfigManager.apiUrl.isNotBlank() || ConfigManager.apiKey.isNotBlank() || ConfigManager.modelName.isNotBlank()
+    val hasConfig = ConfigManager.apiUrl.isNotBlank() || ConfigManager.apiKey.isNotBlank() || ConfigManager.modelName.isNotBlank() || ConfigManager.asrWsUrl.isNotBlank()
     var isEditing by rememberSaveable { mutableStateOf(!hasConfig) }
     var currentStep by rememberSaveable { mutableStateOf(0) }
     var apiUrl by remember { mutableStateOf(ConfigManager.apiUrl) }
     var apiKey by remember { mutableStateOf(ConfigManager.apiKey) }
     var modelName by remember { mutableStateOf(ConfigManager.modelName) }
+    var asrWsUrl by remember { mutableStateOf(ConfigManager.asrWsUrl) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    val stepTitles = listOf("API URL", "API 密钥", "模型名称")
+    val stepTitles = listOf("API URL", "API 密钥", "模型名称", "语音转录地址")
     val stepDescriptions = listOf(
         "请输入模型的 API 地址",
         "请输入 API 密钥",
-        "请输入模型名称"
+        "请输入模型名称",
+        "请输入语音转录 WebSocket 地址"
     )
 
     Scaffold(
@@ -328,7 +331,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text(
-                            text = "模型配置",
+                            text = "系统配置",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -341,9 +344,10 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                ConfigInfoRow(label = "API URL: ", value = ConfigManager.apiUrl)
-                                ConfigInfoRow(label = "API 密钥: ", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
+                                ConfigInfoRow(label = "模型API URL: ", value = ConfigManager.apiUrl)
+                                ConfigInfoRow(label = "模型API 密钥: ", value = if (ConfigManager.apiKey.isNotBlank()) "••••••" else "")
                                 ConfigInfoRow(label = "模型名称: ", value = ConfigManager.modelName)
+                                ConfigInfoRow(label = "语音转录地址: ", value = ConfigManager.asrWsUrl)
                             }
                         }
                     }
@@ -374,13 +378,13 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                 }
 
                 Text(
-                    text = "模型配置",
+                    text = "系统配置",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
 
                 Text(
-                    text = "步骤 ${currentStep + 1} / 3：${stepTitles[currentStep]}",
+                    text = "步骤 ${currentStep + 1} / 4：${stepTitles[currentStep]}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -395,7 +399,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                     0 -> OutlinedTextField(
                         value = apiUrl,
                         onValueChange = { apiUrl = it },
-                        label = { Text("API URL") },
+                        label = { Text("模型API URL") },
                         placeholder = { Text("https://api.deepseek.com") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -403,7 +407,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                     1 -> OutlinedTextField(
                         value = apiKey,
                         onValueChange = { apiKey = it },
-                        label = { Text("API 密钥") },
+                        label = { Text("模型API 密钥") },
                         placeholder = { Text("sk-...") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -417,6 +421,14 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+                    3 -> OutlinedTextField(
+                        value = asrWsUrl,
+                        onValueChange = { asrWsUrl = it },
+                        label = { Text("语音转录地址") },
+                        placeholder = { Text("ws://192.168.1.100:19001") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -427,7 +439,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                 ) {
                     Spacer(modifier = Modifier.weight(1f))
 
-                    if (currentStep < 2) {
+                    if (currentStep < 3) {
                         Button(
                             onClick = { currentStep++ },
                             modifier = Modifier.fillMaxWidth(),
@@ -435,6 +447,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                             enabled = when (currentStep) {
                                 0 -> apiUrl.isNotBlank()
                                 1 -> apiKey.isNotBlank()
+                                2 -> modelName.isNotBlank()
                                 else -> true
                             }
                         ) {
@@ -449,9 +462,7 @@ fun ConfigPage(modifier: Modifier = Modifier) {
                                 ConfigManager.apiUrl = apiUrl
                                 ConfigManager.apiKey = apiKey
                                 ConfigManager.modelName = modelName
-                                apiUrl = apiUrl
-                                apiKey = apiKey
-                                modelName = modelName
+                                ConfigManager.asrWsUrl = asrWsUrl
                                 isEditing = false
                                 scope.launch {
                                     snackbarHostState.showSnackbar("配置已保存", duration = SnackbarDuration.Short)
