@@ -43,7 +43,11 @@ import java.util.*
  * 语音转文本页面
  */
 @Composable
-fun VoiceRecordingScreen(onExit: () -> Unit) {
+fun VoiceRecordingScreen(
+    onExit: () -> Unit,
+    serverUrl: String = "ws://172.20.10.6:19001",
+    useNetwork: Boolean = true,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -75,7 +79,10 @@ fun VoiceRecordingScreen(onExit: () -> Unit) {
         }
     }
 
-    val recorder = remember { VoiceRecorder() }
+    val recorder = remember { VoiceRecorder().apply {
+        this.serverUrl = serverUrl
+        this.useNetwork = useNetwork
+    } }
     val listState = rememberLazyListState()
 
     // Permission launcher

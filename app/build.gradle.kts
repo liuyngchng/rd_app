@@ -102,6 +102,7 @@ dependencies {
         exclude(group = "net.java.dev.jna")
     }
     implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation(libs.okhttp)
     implementation(libs.androidx.room.external.antlr)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

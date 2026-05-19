@@ -127,7 +127,10 @@ fun Rd_appApp() {
     }
 
     if (showVoiceRecorder) {
-        VoiceRecordingScreen(onExit = { showVoiceRecorder = false })
+        VoiceRecordingScreen(
+            onExit = { showVoiceRecorder = false },
+            serverUrl = ConfigManager.asrWsUrl,
+        )
     } else if (showRecorder) {
         VideoRecordingScreen(onExit = { showRecorder = false })
     } else if (!isLoggedIn) {
@@ -198,6 +201,7 @@ object ConfigManager {
     private const val KEY_LOGGED_USER = "logged_user"
     private const val KEY_LOGIN_TIME = "login_time"
     private const val KEY_CHAT_MESSAGES = "chat_messages"
+    private const val KEY_ASR_WS_URL = "asr_ws_url"
     private const val LOGIN_VALID_DAYS = 7L
 
     private lateinit var prefs: SharedPreferences
@@ -217,6 +221,10 @@ object ConfigManager {
     var modelName: String
         get() = prefs.getString(KEY_MODEL_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_MODEL_NAME, value).apply()
+
+    var asrWsUrl: String
+        get() = prefs.getString(KEY_ASR_WS_URL, "ws://10.0.2.2:19001") ?: "ws://10.0.2.2:19001"
+        set(value) = prefs.edit().putString(KEY_ASR_WS_URL, value).apply()
 
     // ── Login persistence (7-day auto login) ──
 
