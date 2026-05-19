@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.*
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
 import android.media.MediaRecorder
 import android.os.Build
 import android.provider.MediaStore
@@ -237,10 +239,12 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
         var rearOk = false
         suspendCancellableCoroutine<Unit> { cont ->
             rearSession.open(
-                onReady = { rearOk = true; cont.resume(Unit) },
+                onReady = { rearOk = true;
+                    cont.resume(Unit) { _, _, _ -> }
+                },
                 onFail = { err ->
                     errorMsg = err
-                    cont.resume(Unit)
+                    cont.resume(Unit) { _, _, _ -> }
                 }
             )
         }
@@ -255,12 +259,14 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
 
             suspendCancellableCoroutine<Unit> { cont ->
                 frontSession.open(
-                    onReady = { frontReady = true; cont.resume(Unit) },
+                    onReady = { frontReady = true;
+                        cont.resume(Unit) { _, _, _ -> }
+                    },
                     onFail = { err ->
                         Log.w("VideoRecorder", "Front camera unavailable: $err")
                         // Continue with rear only
                         frontRef.value = null
-                        cont.resume(Unit)
+                        cont.resume(Unit) { _, _, _ -> }
                     }
                 )
             }
@@ -272,6 +278,7 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
         while (true) {
             val now = Calendar.getInstance()
             currentTimeText = String.format(
+                Locale.ROOT,
                 "%04d-%02d-%02d %02d:%02d:%02d",
                 now.get(Calendar.YEAR),
                 now.get(Calendar.MONTH) + 1,
@@ -616,22 +623,61 @@ private class CameraSession(
         val surface = previewSurface ?: return
         val device = cameraDevice ?: return
         try {
-            device.createCaptureSession(listOf(surface),
-                object : CameraCaptureSession.StateCallback() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // 新 API (Android 9.0+)
+                val outputConfig = OutputConfiguration(surface)
+                val outputConfigurations = listOf(outputConfig)
+
+                val sessionCallback = object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(session: CameraCaptureSession) {
                         captureSession = session
                         val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                            ?.apply { addTarget(surface) }?.build()
-                        if (req != null) session.setRepeatingRequest(req, null, handler)
+                            .apply { addTarget(surface) }.build()
+                        req.let {
+                            session.setRepeatingRequest(it, null, handler)
+                        }
                     }
 
                     override fun onConfigureFailed(session: CameraCaptureSession) {
                         onFail("$label 预览配置失败")
                     }
-                }, handler)
+                }
+
+                val sessionConfig = SessionConfiguration(
+                    SessionConfiguration.SESSION_REGULAR,
+                    outputConfigurations,
+                    getThreadPoolExecutor(), // 需要提供 Executor
+                    sessionCallback
+                )
+
+                device.createCaptureSession(sessionConfig)
+            } else {
+                // 旧 API (向后兼容)
+                device.createCaptureSession(
+                    listOf(surface),
+                    object : CameraCaptureSession.StateCallback() {
+                        override fun onConfigured(session: CameraCaptureSession) {
+                            captureSession = session
+                            val req = device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                                .apply { addTarget(surface) }.build()
+                            req.let {
+                                session.setRepeatingRequest(it, null, handler)
+                            }
+                        }
+                        override fun onConfigureFailed(session: CameraCaptureSession) {
+                            onFail("$label 预览配置失败")
+                        }
+                    },
+                    handler
+                )
+            }
         } catch (e: Exception) {
             onFail("$label 预览异常: ${e.message}")
         }
+    }
+
+    private fun getThreadPoolExecutor(): java.util.concurrent.Executor {
+        return java.util.concurrent.Executors.newSingleThreadExecutor()
     }
 
     fun startRecording(file: File, timestampSupplier: () -> String = { "" }) {
@@ -682,10 +728,10 @@ private class CameraSession(
                             override fun onConfigured(session: CameraCaptureSession) {
                                 captureSession = session
                                 val req = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD)
-                                    ?.apply {
+                                    .apply {
                                         addTarget(previewSurf)
                                         addTarget(inputSurface)
-                                    }?.build()
+                                    }.build()
                                 if (req != null) {
                                     session.setRepeatingRequest(req, null, this@CameraSession.handler)
                                     mr.start()
