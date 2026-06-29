@@ -7,11 +7,7 @@ plugins {
 
 android {
     namespace = "com.rd.rd_app"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     // 添加签名配置
     signingConfigs {

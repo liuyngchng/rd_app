@@ -38,11 +38,7 @@ keystore.properties
 
 # Gradle 相关
 gradle-app.setting
-!gradle-wrapper.jar
-.gradle/
-gradle/
-gradlew
-gradlew.bat
+!gradle/wrapper/gradle-wrapper.jar
 
 # 日志文件
 *.log
@@ -150,11 +146,4 @@ coverage/
 # 通用
 # ============================================
 *.bak
-*.swp
-*~
 .directory
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-*.iml
