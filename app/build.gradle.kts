@@ -58,10 +58,6 @@ android {
     buildToolsVersion = "37.0.0"
     ndkVersion = "29.0.14206865"
 
-    aaptOptions {
-        noCompress("mdl", "fst", "int", "conf", "mat", "dubm", "ie", "stats")
-    }
-
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -98,12 +94,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
-    implementation("com.alphacephei:vosk-android:0.3.45") {
-        exclude(group = "net.java.dev.jna")
-    }
-    implementation("net.java.dev.jna:jna:5.14.0@aar")
-    implementation(libs.okhttp)
-    implementation(libs.androidx.room.external.antlr)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
