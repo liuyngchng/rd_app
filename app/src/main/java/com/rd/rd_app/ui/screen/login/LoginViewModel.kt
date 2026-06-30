@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.update
 
 class LoginViewModel : ViewModel() {
 
-    private val _username = MutableStateFlow("")
+    private val _username = MutableStateFlow("test")
     val username: StateFlow<String> = _username.asStateFlow()
 
-    private val _password = MutableStateFlow("")
+    private val _password = MutableStateFlow("test")
     val password: StateFlow<String> = _password.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -33,7 +33,7 @@ class LoginViewModel : ViewModel() {
     }
 
     fun login() {
-        if (_username.value == "avata" && _password.value == "avata") {
+        if (_username.value == "test" && _password.value == "test") {
             ConfigManager.saveLogin(_username.value)
             _loginSuccess.value = true
         } else {
