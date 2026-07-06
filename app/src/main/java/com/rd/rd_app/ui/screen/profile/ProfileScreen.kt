@@ -37,6 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -78,12 +79,14 @@ import java.util.Locale
 fun ProfileScreen(
     onLogout: () -> Unit,
     onStartRecorder: () -> Unit = {},
+    onStartOcr: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ProfileViewModel = viewModel()
 ) {
     val username by viewModel.username.collectAsState()
     val logoutTriggered by viewModel.logoutTriggered.collectAsState()
     val startRecorder by viewModel.startRecorder.collectAsState()
+    val startOcr by viewModel.startOcr.collectAsState()
 
     val context = LocalContext.current
     var photoUri by remember { mutableStateOf<Uri?>(null) }
@@ -146,6 +149,12 @@ fun ProfileScreen(
     if (startRecorder) {
         viewModel.onRecorderStarted()
         onStartRecorder()
+        return
+    }
+
+    if (startOcr) {
+        viewModel.onOcrStarted()
+        onStartOcr()
         return
     }
 
@@ -299,6 +308,32 @@ fun ProfileScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { viewModel.triggerRecorder() }
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    ListItem(
+                        headlineContent = { Text("文字识别") },
+                        supportingContent = { Text("拍照/扫描/相册 OCR 文字提取") },
+                        leadingContent = {
+                            Surface(
+                                modifier = Modifier.size(40.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.TextSnippet,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.triggerOcr() }
                     )
                 }
             }

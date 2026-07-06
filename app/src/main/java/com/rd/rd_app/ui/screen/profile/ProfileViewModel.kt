@@ -21,6 +21,9 @@ class ProfileViewModel : ViewModel() {
     private val _startRecorder = MutableStateFlow(false)
     val startRecorder: StateFlow<Boolean> = _startRecorder.asStateFlow()
 
+    private val _startOcr = MutableStateFlow(false)
+    val startOcr: StateFlow<Boolean> = _startOcr.asStateFlow()
+
     fun logout() {
         Log.d(TAG, "logout() called — clearing login")
         ConfigManager.clearLogin()
@@ -37,7 +40,15 @@ class ProfileViewModel : ViewModel() {
         _startRecorder.value = false
     }
 
+    fun onOcrStarted() {
+        _startOcr.value = false
+    }
+
     fun triggerRecorder() {
         _startRecorder.value = true
+    }
+
+    fun triggerOcr() {
+        _startOcr.value = true
     }
 }
