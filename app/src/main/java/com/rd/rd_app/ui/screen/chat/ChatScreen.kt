@@ -3,8 +3,8 @@ package com.rd.rd_app.ui.screen.chat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,43 +14,60 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rd.rd_app.ChatMessage
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
@@ -60,105 +77,155 @@ fun ChatScreen(
     val inputText by viewModel.inputText.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
 
+    // Detect if user has scrolled up (not at the bottom)
+    val showScrollToBottom by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 ||
+                    (listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset > 0)
+        }
+    }
+
+    // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        // Top bar with clear button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "AI 对话",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "AI 对话",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                actions = {
+                    if (messages.isNotEmpty()) {
+                        IconButton(onClick = viewModel::clearMessages) {
+                            Icon(
+                                Icons.Default.DeleteOutline,
+                                contentDescription = "清空对话"
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
-            if (messages.isNotEmpty()) {
-                IconButton(onClick = viewModel::clearMessages) {
+        },
+        bottomBar = {
+            ChatInputBar(
+                value = inputText,
+                onValueChange = viewModel::updateInputText,
+                onSend = {
+                    focusManager.clearFocus()
+                    viewModel::sendMessage.invoke()
+                },
+                enabled = !isLoading
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            if (messages.isEmpty()) {
+                EmptyChatState(
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(
+                        messages,
+                        key = { index, _ -> index }
+                    ) { _, message ->
+                        ChatBubble(message = message)
+                    }
+
+                    if (isLoading) {
+                        item(key = "loading") {
+                            LoadingBubble()
+                        }
+                    }
+                }
+            }
+
+            // Scroll-to-bottom FAB
+            AnimatedVisibility(
+                visible = showScrollToBottom && messages.isNotEmpty(),
+                enter = fadeIn() + slideInVertically(),
+                exit = fadeOut() + slideOutVertically(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 8.dp)
+            ) {
+                FilledTonalIconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(messages.size - 1)
+                        }
+                    }
+                ) {
                     Icon(
-                        Icons.Default.DeleteOutline,
-                        contentDescription = "清空对话",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = "滚动到底部"
                     )
                 }
             }
         }
-
-        // Messages list
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            state = listState,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (messages.isEmpty()) {
-                item {
-                    EmptyChatState()
-                }
-            }
-            items(messages, key = { "${it.text.hashCode()}_${it.isUser}_${messages.indexOf(it)}" }) { message ->
-                ChatBubble(message = message)
-            }
-            if (isLoading && messages.isNotEmpty() && !messages.last().isUser) {
-                // AI is loading, skip
-            } else if (isLoading) {
-                item {
-                    LoadingBubble()
-                }
-            }
-        }
-
-        // Input bar
-        ChatInputBar(
-            value = inputText,
-            onValueChange = viewModel::updateInputText,
-            onSend = viewModel::sendMessage,
-            enabled = !isLoading
-        )
     }
 }
 
 @Composable
-private fun EmptyChatState() {
+private fun EmptyChatState(modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 80.dp),
+        modifier = modifier.padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.Center
     ) {
         Surface(
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier.size(80.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer
+            color = MaterialTheme.colorScheme.primaryContainer,
+            tonalElevation = 2.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = "AI",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                Icon(
+                    imageVector = Icons.Default.SmartToy,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
+
+        Spacer(modifier = Modifier.size(20.dp))
+
         Text(
             text = "开始对话",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
         )
+
+        Spacer(modifier = Modifier.size(8.dp))
+
         Text(
             text = "发送消息开始与 AI 助手对话",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
@@ -174,48 +241,26 @@ private fun ChatBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
-        Row(
+        Surface(
             modifier = Modifier.widthIn(max = 320.dp),
-            verticalAlignment = Alignment.Bottom
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = if (isUser) 16.dp else 4.dp,
+                bottomEnd = if (isUser) 4.dp else 16.dp
+            ),
+            color = if (isUser) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = if (!isUser) 1.dp else 0.dp,
+            shadowElevation = if (isUser) 0.dp else 0.dp
         ) {
-            if (!isUser) {
-                // AI avatar
-                Surface(
-                    modifier = Modifier.size(28.dp),
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.tertiaryContainer
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "AI",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            Surface(
-                shape = RoundedCornerShape(
-                    topStart = 16.dp,
-                    topEnd = 16.dp,
-                    bottomStart = if (isUser) 16.dp else 4.dp,
-                    bottomEnd = if (isUser) 4.dp else 16.dp
-                ),
-                color = if (isUser) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = if (!isUser) 1.dp else 0.dp
-            ) {
-                Text(
-                    text = message.text,
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
+            Text(
+                text = message.text,
+                color = if (isUser) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }
@@ -229,32 +274,22 @@ private fun LoadingBubble() {
         verticalAlignment = Alignment.Bottom
     ) {
         Surface(
-            modifier = Modifier.size(28.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.tertiaryContainer
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = "AI",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Surface(
-            shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+            shape = RoundedCornerShape(
+                topStart = 16.dp,
+                topEnd = 16.dp,
+                bottomStart = 4.dp,
+                bottomEnd = 16.dp
+            ),
             color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 1.dp
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 repeat(3) { index ->
-                    DotPulse(delay = index * 200)
+                    DotPulse(delayMs = index * 200)
                 }
             }
         }
@@ -262,23 +297,25 @@ private fun LoadingBubble() {
 }
 
 @Composable
-private fun DotPulse(delay: Int) {
-    var visible by remember { mutableStateOf(false) }
+private fun DotPulse(delayMs: Int) {
+    var alpha by remember { mutableStateOf(0.3f) }
+
     LaunchedEffect(Unit) {
-        delay(delay.toLong())
+        delay(delayMs.toLong())
         while (true) {
-            visible = true
-            delay(400)
-            visible = false
-            delay(400)
+            alpha = 1f
+            delay(300)
+            alpha = 0.3f
+            delay(300)
         }
     }
+
     Box(
         modifier = Modifier
-            .size(6.dp)
+            .size(7.dp)
             .clip(CircleShape)
             .background(
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (visible) 1f else 0.2f)
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
             )
     )
 }
@@ -290,14 +327,21 @@ private fun ChatInputBar(
     onSend: () -> Unit,
     enabled: Boolean
 ) {
+    val canSend = enabled && value.isNotBlank()
+
     Surface(
-        tonalElevation = 2.dp,
-        shadowElevation = 4.dp
+        tonalElevation = 3.dp,
+        shadowElevation = 8.dp,
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .then(
+                    // Use navigationBarsPadding at the bottomBar level
+                    Modifier.padding(bottom = 0.dp)
+                ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
@@ -308,24 +352,25 @@ private fun ChatInputBar(
                 singleLine = true,
                 enabled = enabled,
                 shape = RoundedCornerShape(24.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { onSend() }),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 )
             )
+
             Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
+
+            FilledIconButton(
                 onClick = onSend,
-                enabled = enabled && value.isNotBlank(),
+                enabled = canSend,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "发送",
-                    tint = if (enabled && value.isNotBlank())
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }

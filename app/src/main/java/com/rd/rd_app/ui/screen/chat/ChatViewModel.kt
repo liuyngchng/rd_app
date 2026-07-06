@@ -29,10 +29,7 @@ class ChatViewModel : ViewModel() {
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     init {
-        if (_messages.value.isEmpty()) {
-            _messages.update { it.apply { add(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false)) } }
-            persistMessages()
-        }
+        // Start with empty chat
     }
 
     fun updateInputText(value: String) {
@@ -61,7 +58,6 @@ class ChatViewModel : ViewModel() {
     fun clearMessages() {
         _messages.update { mutableListOf() }
         ConfigManager.saveMessages(emptyList())
-        addMessage(ChatMessage("你好！我是AI助手，有什么可以帮你的吗？", false))
     }
 
     private fun addMessage(message: ChatMessage) {

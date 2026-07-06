@@ -32,6 +32,10 @@ class LoginViewModel : ViewModel() {
         _errorMessage.value = null
     }
 
+    fun resetLoginSuccess() {
+        _loginSuccess.value = false
+    }
+
     fun login() {
         if (_username.value == "test" && _password.value == "test") {
             ConfigManager.saveLogin(_username.value)

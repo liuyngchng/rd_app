@@ -1,5 +1,6 @@
 package com.rd.rd_app.ui.screen.profile
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.rd.rd_app.ConfigManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -7,6 +8,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class ProfileViewModel : ViewModel() {
+    companion object {
+        private const val TAG = "ProfileViewModel"
+    }
 
     private val _username = MutableStateFlow(ConfigManager.savedUsername)
     val username: StateFlow<String> = _username.asStateFlow()
@@ -18,8 +22,15 @@ class ProfileViewModel : ViewModel() {
     val startRecorder: StateFlow<Boolean> = _startRecorder.asStateFlow()
 
     fun logout() {
+        Log.d(TAG, "logout() called — clearing login")
         ConfigManager.clearLogin()
+        Log.d(TAG, "isLoginValid after clear: ${ConfigManager.isLoginValid()}")
         _logoutTriggered.value = true
+        Log.d(TAG, "logoutTriggered set to true")
+    }
+
+    fun resetLogoutTrigger() {
+        _logoutTriggered.value = false
     }
 
     fun onRecorderStarted() {

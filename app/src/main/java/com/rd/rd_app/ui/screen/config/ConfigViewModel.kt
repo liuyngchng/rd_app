@@ -43,9 +43,26 @@ class ConfigViewModel : ViewModel() {
     }
 
     fun saveConfig() {
-        ConfigManager.apiUrl = _apiUrl.value
-        ConfigManager.apiKey = _apiKey.value
-        ConfigManager.modelName = _modelName.value
+        val url = _apiUrl.value.trim()
+        val key = _apiKey.value.trim()
+        val model = _modelName.value.trim()
+
+        if (url.isBlank()) {
+            _snackbarMessage.value = "API 地址不能为空"
+            return
+        }
+        if (key.isBlank()) {
+            _snackbarMessage.value = "API 密钥不能为空"
+            return
+        }
+        if (model.isBlank()) {
+            _snackbarMessage.value = "模型名称不能为空"
+            return
+        }
+
+        ConfigManager.apiUrl = url
+        ConfigManager.apiKey = key
+        ConfigManager.modelName = model
         _isEditing.value = false
         _snackbarMessage.value = "配置已保存"
     }

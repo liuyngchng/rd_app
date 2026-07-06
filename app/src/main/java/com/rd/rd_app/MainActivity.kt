@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,8 +27,10 @@ import androidx.compose.ui.res.painterResource
 import com.rd.rd_app.ui.screen.chat.ChatScreen
 import com.rd.rd_app.ui.screen.config.ConfigScreen
 import com.rd.rd_app.ui.screen.login.LoginScreen
+import com.rd.rd_app.ui.screen.login.LoginViewModel
 import com.rd.rd_app.ui.screen.profile.ProfileScreen
 import com.rd.rd_app.ui.theme.RdAppTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -111,12 +114,20 @@ fun RdAppApp() {
     var showRecorder by rememberSaveable { mutableStateOf(false) }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
 
+    Log.d("RdAppApp", "Recompose — isLoggedIn=$isLoggedIn, configLoginValid=${ConfigManager.isLoginValid()}")
+
+    // Back press: go to HOME first, then exit
+    BackHandler(enabled = currentDestination != AppDestinations.HOME) {
+        currentDestination = AppDestinations.HOME
+    }
+
     if (showRecorder) {
         VideoRecordingScreen(onExit = { showRecorder = false })
     } else if (!isLoggedIn) {
         LoginScreen(
             onLoginSuccess = { _ -> isLoggedIn = true },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            viewModel = viewModel<LoginViewModel>().also { it.resetLoginSuccess() }
         )
     } else {
         NavigationSuiteScaffold(
@@ -141,6 +152,7 @@ fun RdAppApp() {
                 AppDestinations.CONFIG -> ConfigScreen(modifier = Modifier.fillMaxSize())
                 AppDestinations.PROFILE -> ProfileScreen(
                     onLogout = {
+                        Log.d("RdAppApp", "ProfileScreen onLogout called — setting isLoggedIn=false")
                         isLoggedIn = false
                         currentDestination = AppDestinations.HOME
                     },
