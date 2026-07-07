@@ -90,7 +90,6 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.graphics.asImageBitmap
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -705,16 +704,16 @@ private fun LiveCameraPreview(
         }
     }
 
-    // Periodic frame capture for live scan
+    // Periodic frame capture for live scan (every 2s to avoid flickering)
     LaunchedEffect(scanEnabled) {
         if (!scanEnabled) return@LaunchedEffect
 
-        val captureBitmap = AtomicBoolean(false)
-        kotlinx.coroutines.delay(300) // Initial delay
+        // Brief delay for camera to start, then capture first frame immediately
+        kotlinx.coroutines.delay(300)
 
         while (scanEnabled) {
             val tv = textureView ?: break
-            if (tv.isAvailable && captureBitmap.compareAndSet(false, true)) {
+            if (tv.isAvailable) {
                 try {
                     val bitmap = tv.bitmap
                     if (bitmap != null) {
@@ -722,11 +721,10 @@ private fun LiveCameraPreview(
                     }
                 } catch (e: Exception) {
                     Log.e("OcrScreen", "Frame capture failed", e)
-                } finally {
-                    captureBitmap.set(false)
                 }
             }
-            kotlinx.coroutines.delay(500)
+            // Refresh UI every 2 seconds to avoid flickering
+            kotlinx.coroutines.delay(2000)
         }
     }
 

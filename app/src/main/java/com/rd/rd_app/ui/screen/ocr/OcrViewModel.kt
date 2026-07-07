@@ -46,6 +46,7 @@ class OcrViewModel : ViewModel() {
     companion object {
         private const val TAG = "OcrViewModel"
         private const val MAX_IMAGE_DIMENSION = 1920
+        private const val DISPLAY_INTERVAL_MS = 2000L
     }
 
     private val recognizer = TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
@@ -69,6 +70,7 @@ class OcrViewModel : ViewModel() {
     val scanEnabled: StateFlow<Boolean> = _scanEnabled.asStateFlow()
 
     private val processingFrame = AtomicBoolean(false)
+    private var lastDisplayUpdateMs = 0L
 
     fun switchMode(mode: OcrInputMode) {
         _inputMode.value = mode
@@ -97,19 +99,35 @@ class OcrViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            _isProcessing.value = true
+            // Only show processing indicator for single-shot modes (photo/gallery),
+            // not for live scan (the red "扫描中" badge already indicates activity)
+            if (!_scanEnabled.value) {
+                _isProcessing.value = true
+            }
             _errorMessage.value = null
 
             try {
                 val result = runRecognition(bitmap)
 
-                _recognizedText.value = result.first
-                _textBlocks.value = result.second
+                if (_scanEnabled.value) {
+                    // Throttle UI updates to every 2s during live scan
+                    val now = System.currentTimeMillis()
+                    if (now - lastDisplayUpdateMs >= DISPLAY_INTERVAL_MS) {
+                        _recognizedText.value = result.first
+                        _textBlocks.value = result.second
+                        lastDisplayUpdateMs = now
+                    }
+                } else {
+                    _recognizedText.value = result.first
+                    _textBlocks.value = result.second
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "OCR recognition failed", e)
                 _errorMessage.value = "文字识别失败：${e.message ?: "未知错误"}"
             } finally {
-                _isProcessing.value = false
+                if (!_scanEnabled.value) {
+                    _isProcessing.value = false
+                }
                 processingFrame.set(false)
             }
         }
