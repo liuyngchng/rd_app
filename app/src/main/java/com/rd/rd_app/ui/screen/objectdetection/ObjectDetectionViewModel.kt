@@ -140,14 +140,18 @@ class ObjectDetectionViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            _isProcessing.value = true
+            // Only show processing indicator for single-shot modes (photo/gallery),
+            // not for live scan (the red "检测中" badge already indicates activity)
+            if (!_scanEnabled.value) {
+                _isProcessing.value = true
+            }
             _errorMessage.value = null
 
             try {
                 val results = runDetection(bitmap, d)
 
                 if (_scanEnabled.value) {
-                    // Throttle all UI updates to every 2s during live scan
+                    // Throttle UI updates to every 2s during live scan
                     val now = System.currentTimeMillis()
                     if (now - lastDisplayUpdateMs >= DISPLAY_INTERVAL_MS) {
                         _detections.value = results
@@ -162,7 +166,9 @@ class ObjectDetectionViewModel : ViewModel() {
                 Log.e(TAG, "Detection failed", e)
                 _errorMessage.value = "检测失败：${e.message ?: "未知错误"}"
             } finally {
-                _isProcessing.value = false
+                if (!_scanEnabled.value) {
+                    _isProcessing.value = false
+                }
                 processingFrame.set(false)
             }
         }
