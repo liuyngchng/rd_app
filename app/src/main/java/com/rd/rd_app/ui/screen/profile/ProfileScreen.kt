@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -80,6 +81,7 @@ fun ProfileScreen(
     onLogout: () -> Unit,
     onStartRecorder: () -> Unit = {},
     onStartOcr: () -> Unit = {},
+    onStartObjectDetection: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: ProfileViewModel = viewModel()
 ) {
@@ -87,6 +89,7 @@ fun ProfileScreen(
     val logoutTriggered by viewModel.logoutTriggered.collectAsState()
     val startRecorder by viewModel.startRecorder.collectAsState()
     val startOcr by viewModel.startOcr.collectAsState()
+    val startObjectDetection by viewModel.startObjectDetection.collectAsState()
 
     val context = LocalContext.current
     var photoUri by remember { mutableStateOf<Uri?>(null) }
@@ -155,6 +158,12 @@ fun ProfileScreen(
     if (startOcr) {
         viewModel.onOcrStarted()
         onStartOcr()
+        return
+    }
+
+    if (startObjectDetection) {
+        viewModel.onObjectDetectionStarted()
+        onStartObjectDetection()
         return
     }
 
@@ -334,6 +343,32 @@ fun ProfileScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { viewModel.triggerOcr() }
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    ListItem(
+                        headlineContent = { Text("目标检测") },
+                        supportingContent = { Text("离线识别猫狗等 80 种物体") },
+                        leadingContent = {
+                            Surface(
+                                modifier = Modifier.size(40.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Visibility,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.triggerObjectDetection() }
                     )
                 }
             }

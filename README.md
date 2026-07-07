@@ -1,6 +1,6 @@
 # RD App
 
-AI 对话助手 + 双摄录像 + 离线 OCR 文字识别的多功能 Android 应用。
+AI 对话助手 + 双摄录像 + 离线 OCR 文字识别 + 离线目标检测的多功能 Android 应用。
 
 ## 功能
 
@@ -8,6 +8,7 @@ AI 对话助手 + 双摄录像 + 离线 OCR 文字识别的多功能 Android 应
 |---|---|
 | **AI 聊天** | 对接 OpenAI 兼容 API（DeepSeek 等），支持多轮对话，历史本地持久化 |
 | **离线 OCR** | 拍照/相册/实时扫描 三种模式，完全离线，支持中英文识别 |
+| **离线目标检测** | 拍照/相册/实时检测 三种模式，离线识别猫狗等 80 种物体，支持 bounding box 标注 |
 | **双摄录像** | 前后摄像头同时录制，实时时间戳叠加，自动分段（5分钟） |
 | **拍照** | 自动叠加时间戳水印，一键保存到系统相册 |
 | **配置管理** | 自定义 API 地址、密钥、模型名称 |
@@ -28,6 +29,7 @@ AI 对话助手 + 双摄录像 + 离线 OCR 文字识别的多功能 Android 应
 | `androidx.compose.material3` | Material 3 UI 组件 |
 | `androidx.lifecycle:lifecycle-viewmodel-compose` | MVVM ViewModel |
 | `com.google.mlkit:text-recognition-chinese:16.0.1` | **离线 OCR 引擎** |
+| `org.tensorflow:tensorflow-lite-task-vision:0.4.4` | **离线目标检测引擎** |
 
 ## 构建
 
@@ -141,6 +143,71 @@ mlkitTextRecognition = "16.0.1"  # 修改此版本号
 
 ---
 
+## 目标检测模型说明
+
+### 使用的模型
+
+本应用集成了 **TensorFlow Lite Task Vision** 的 **EfficientDet-Lite2** 模型：
+
+```
+模型文件: app/src/main/assets/efficientdet_lite2.tflite (~7.3 MB)
+来源: TensorFlow Hub
+类库: org.tensorflow:tensorflow-lite-task-vision:0.4.4
+```
+
+该模型基于 EfficientDet 架构，在 COCO 2017 数据集上训练，支持 **80 种常见物体**的检测和定位：
+
+| 类别 | 示例 |
+|---|---|
+| 动物 | `cat` `dog` `bird` `horse` `sheep` `cow` `elephant` `bear` `zebra` `giraffe` |
+| 交通工具 | `car` `bicycle` `motorcycle` `bus` `train` `truck` `boat` `airplane` |
+| 人物 | `person` |
+| 食物 | `apple` `banana` `orange` `pizza` `cake` `hot dog` `sandwich` `carrot` `broccoli` `donut` |
+| 家居物品 | `chair` `couch` `bed` `dining table` `toilet` `tv` `laptop` `cell phone` `book` `clock` |
+| 其他 | `sports ball` `tennis racket` `umbrella` `backpack` `handbag` `bottle` `cup` `scissors` 等 |
+
+### 模型体积
+
+| 组件 | 大小 |
+|---|---|
+| EfficientDet-Lite2 模型 | ~7.3 MB |
+| 预期 APK 体积增加 | ~8 MB（含 TFLite 运行时） |
+
+### 识别性能参考
+
+| 指标 | 数值 |
+|---|---|
+| 单帧检测耗时 | 50-150ms |
+| COCO mAP (精度) | 33.5% |
+| 最大检测数 | 10 个/帧 |
+| 置信度阈值 | 50% |
+| 内存占用 | 50-80 MB |
+| GPU 加速 | 当前未启用（CPU 推理） |
+
+### 三种检测模式
+
+| 模式 | 描述 |
+|---|---|
+| **拍照检测** | 拍摄照片后自动检测画面中的物体，标注 bounding box |
+| **相册选取** | 从系统相册选择图片进行检测 |
+| **实时检测** | 开启摄像头实时预览，持续检测画面中的物体（约 2 FPS） |
+
+### 模型加载时机
+
+- 进入目标检测页面时初始化加载
+- 模型文件随 APK 打包在 `assets/` 中
+- **全程离线**，不需要网络连接
+
+### 升级模型版本
+
+如需更高精度，可替换为 EfficientDet-Lite3 或 Lite4：
+
+1. 从 [TensorFlow Hub](https://tfhub.dev/tensorflow/lite-model/efficientdet/lite3/detection/metadata/1) 下载模型
+2. 替换 `app/src/main/assets/efficientdet_lite2.tflite`
+3. 修改 `ObjectDetectionViewModel.kt` 中的 `MODEL_FILE` 常量
+
+---
+
 ## 项目结构
 
 ```
@@ -159,9 +226,12 @@ app/src/main/java/com/rd/rd_app/
         ├── config/              # 设置页面
         ├── login/               # 登录页面
         ├── profile/             # 个人中心 + 快捷操作
-        └── ocr/                 # 离线 OCR（新增）
+        └── ocr/                 # 离线 OCR
             ├── OcrViewModel.kt  # OCR 状态管理 + ML Kit 调用
             └── OcrScreen.kt     # OCR 界面（拍照/相册/实时扫描）
+        └── objectdetection/     # 离线目标检测（新增）
+            ├── ObjectDetectionViewModel.kt  # 检测器管理 + TFLite 调用
+            └── ObjectDetectionScreen.kt     # 检测界面（拍照/相册/实时检测）
 ```
 
 ## 权限说明

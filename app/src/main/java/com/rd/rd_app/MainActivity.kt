@@ -29,6 +29,7 @@ import com.rd.rd_app.ui.screen.config.ConfigScreen
 import com.rd.rd_app.ui.screen.login.LoginScreen
 import com.rd.rd_app.ui.screen.login.LoginViewModel
 import com.rd.rd_app.ui.screen.ocr.OcrScreen
+import com.rd.rd_app.ui.screen.objectdetection.ObjectDetectionScreen
 import com.rd.rd_app.ui.screen.profile.ProfileScreen
 import com.rd.rd_app.ui.theme.RdAppTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -114,6 +115,7 @@ fun RdAppApp() {
     var isLoggedIn by rememberSaveable { mutableStateOf(ConfigManager.isLoginValid()) }
     var showRecorder by rememberSaveable { mutableStateOf(false) }
     var showOcr by rememberSaveable { mutableStateOf(false) }
+    var showObjectDetection by rememberSaveable { mutableStateOf(false) }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
 
     Log.d("RdAppApp", "Recompose — isLoggedIn=$isLoggedIn, configLoginValid=${ConfigManager.isLoginValid()}")
@@ -127,6 +129,8 @@ fun RdAppApp() {
         VideoRecordingScreen(onExit = { showRecorder = false })
     } else if (showOcr) {
         OcrScreen(onExit = { showOcr = false })
+    } else if (showObjectDetection) {
+        ObjectDetectionScreen(onExit = { showObjectDetection = false })
     } else if (!isLoggedIn) {
         LoginScreen(
             onLoginSuccess = { _ -> isLoggedIn = true },
@@ -162,6 +166,7 @@ fun RdAppApp() {
                     },
                     onStartRecorder = { showRecorder = true },
                     onStartOcr = { showOcr = true },
+                    onStartObjectDetection = { showObjectDetection = true },
                     modifier = Modifier.fillMaxSize()
                 )
             }

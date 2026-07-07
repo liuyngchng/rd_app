@@ -57,6 +57,10 @@ android {
     }
     buildToolsVersion = "37.0.0"
 
+    aaptOptions {
+        noCompress("tflite")
+    }
+
 }
 
 tasks.whenTaskAdded {
@@ -90,6 +94,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.mlkit.text.recognition.chinese)
+    implementation(libs.tensorflow.lite.task.vision)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
