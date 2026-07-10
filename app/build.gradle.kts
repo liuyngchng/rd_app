@@ -13,7 +13,7 @@ android {
     // 添加签名配置
     signingConfigs {
         create("release") {
-            storeFile = file("../rd-app-release.jks")
+            storeFile = file("../rd_app-release.keystore")
             val localProperties = Properties()
             val localFile = rootProject.file("local.properties")
             if (localFile.exists()) {
