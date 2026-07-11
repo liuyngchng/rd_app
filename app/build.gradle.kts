@@ -95,6 +95,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.mlkit.text.recognition.chinese)
     implementation(libs.tensorflow.lite.task.vision)
+    implementation(libs.exifinterface)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

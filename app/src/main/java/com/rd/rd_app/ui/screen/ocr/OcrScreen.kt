@@ -4,10 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Matrix
-import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -18,10 +14,10 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import android.util.Size
 import android.view.Surface
 import android.view.TextureView
 import android.widget.Toast
+import androidx.exifinterface.media.ExifInterface
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -120,7 +116,8 @@ fun OcrScreen(
                     val inputStream = context.contentResolver.openInputStream(uri)
                     val bitmap = inputStream?.use { BitmapFactory.decodeStream(it) }
                     if (bitmap != null) {
-                        viewModel.processImage(bitmap)
+                        val rotation = getExifRotation(context, uri)
+                        viewModel.processImage(bitmap, rotation)
                     }
                 } catch (e: Exception) {
                     Log.e("OcrScreen", "Failed to process photo", e)
@@ -140,8 +137,11 @@ fun OcrScreen(
                 val bitmap = inputStream?.use { stream -> BitmapFactory.decodeStream(stream) }
                 if (bitmap != null) {
                     galleryBitmap?.recycle()
-                    galleryBitmap = bitmap
-                    viewModel.processImage(bitmap)
+                    // Copy for display since ViewModel will recycle its copy after OCR
+                    val displayBitmap = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+                    galleryBitmap = displayBitmap
+                    val rotation = getExifRotation(context, uri)
+                    viewModel.processImage(bitmap, rotation)
                 }
             } catch (e: Exception) {
                 Log.e("OcrScreen", "Failed to load gallery image", e)
@@ -311,7 +311,9 @@ fun OcrScreen(
                 isProcessing = isProcessing,
                 errorMessage = errorMessage,
                 onRetry = {
-                    galleryBitmap?.let { viewModel.processImage(it) }
+                    galleryBitmap?.let { bmp ->
+                        viewModel.processImage(bmp.copy(bmp.config ?: Bitmap.Config.ARGB_8888, false))
+                    }
                 },
                 onDismissError = { viewModel.clearError() },
                 modifier = Modifier
@@ -650,6 +652,7 @@ private fun LiveCameraPreview(
     var textureView by remember { mutableStateOf<TextureView?>(null) }
     val cameraDeviceRef = remember { mutableStateOf<CameraDevice?>(null) }
     val captureSessionRef = remember { mutableStateOf<CameraCaptureSession?>(null) }
+    val previewSurfaceRef = remember { mutableStateOf<Surface?>(null) }
     var cameraOpened by remember { mutableStateOf(false) }
 
     // Camera background thread
@@ -660,6 +663,7 @@ private fun LiveCameraPreview(
         onDispose {
             captureSessionRef.value?.close()
             cameraDeviceRef.value?.close()
+            previewSurfaceRef.value?.release()
             cameraThread.quitSafely()
         }
     }
@@ -685,7 +689,7 @@ private fun LiveCameraPreview(
                 override fun onOpened(camera: CameraDevice) {
                     cameraDeviceRef.value = camera
                     cameraOpened = true
-                    startPreview(camera, texture, cameraHandler, captureSessionRef)
+                    startPreview(camera, texture, cameraHandler, captureSessionRef, previewSurfaceRef)
                 }
 
                 override fun onDisconnected(camera: CameraDevice) {
@@ -820,14 +824,40 @@ private fun LiveCameraPreview(
     }
 }
 
+/**
+ * Read EXIF orientation from an image URI and convert to rotation degrees
+ * suitable for InputImage.fromBitmap's rotation parameter.
+ */
+private fun getExifRotation(context: android.content.Context, uri: Uri): Int {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val exif = ExifInterface(stream)
+            when (exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                else -> 0
+            }
+        } ?: 0
+    } catch (e: Exception) {
+        Log.w("OcrScreen", "Failed to read EXIF rotation", e)
+        0
+    }
+}
+
 private fun startPreview(
     camera: CameraDevice,
     textureView: TextureView,
     handler: Handler,
-    sessionRef: MutableState<CameraCaptureSession?>
+    sessionRef: MutableState<CameraCaptureSession?>,
+    surfaceRef: MutableState<Surface?>
 ) {
     try {
         val surface = Surface(textureView.surfaceTexture)
+        surfaceRef.value = surface
         camera.createCaptureSession(
             listOf(surface),
             object : CameraCaptureSession.StateCallback() {

@@ -93,7 +93,12 @@ class OcrViewModel : ViewModel() {
         _errorMessage.value = null
     }
 
-    fun processImage(bitmap: Bitmap) {
+    /**
+     * Process an image for OCR. The bitmap will be recycled after recognition completes.
+     * Callers that need to keep the bitmap for display (e.g. gallery mode) should pass
+     * a copy instead.
+     */
+    fun processImage(bitmap: Bitmap, rotationDegrees: Int = 0) {
         if (processingFrame.getAndSet(true)) {
             return // Skip if already processing a frame
         }
@@ -107,7 +112,7 @@ class OcrViewModel : ViewModel() {
             _errorMessage.value = null
 
             try {
-                val result = runRecognition(bitmap)
+                val result = runRecognition(bitmap, rotationDegrees)
 
                 if (_scanEnabled.value) {
                     // Throttle UI updates to every 2s during live scan
@@ -125,6 +130,11 @@ class OcrViewModel : ViewModel() {
                 Log.e(TAG, "OCR recognition failed", e)
                 _errorMessage.value = "文字识别失败：${e.message ?: "未知错误"}"
             } finally {
+                // Recycle the bitmap unless it's still needed for display.
+                // Callers that need the bitmap (e.g. gallery mode) should pass a copy.
+                if (bitmap != null && !bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
                 if (!_scanEnabled.value) {
                     _isProcessing.value = false
                 }
@@ -133,7 +143,7 @@ class OcrViewModel : ViewModel() {
         }
     }
 
-    private suspend fun runRecognition(bitmap: Bitmap): Pair<String, List<OcrTextBlock>> =
+    private suspend fun runRecognition(bitmap: Bitmap, rotationDegrees: Int = 0): Pair<String, List<OcrTextBlock>> =
         withContext(Dispatchers.IO) {
             // Downscale large images to save memory
             val scaledBitmap = if (bitmap.width > MAX_IMAGE_DIMENSION || bitmap.height > MAX_IMAGE_DIMENSION) {
@@ -149,7 +159,7 @@ class OcrViewModel : ViewModel() {
             }
 
             try {
-                val inputImage = InputImage.fromBitmap(scaledBitmap, 0)
+                val inputImage = InputImage.fromBitmap(scaledBitmap, rotationDegrees)
                 val result = suspendCancellableCoroutine { continuation ->
                     recognizer.process(inputImage)
                         .addOnSuccessListener { visionText ->
@@ -157,12 +167,12 @@ class OcrViewModel : ViewModel() {
                                 OcrTextBlock(
                                     text = block.text,
                                     boundingBox = block.boundingBox,
-                                    cornerPoints = block.cornerPoints,
+                                    cornerPoints = block.cornerPoints?.copyOf(),
                                     lines = block.lines.map { line ->
                                         OcrTextLine(
                                             text = line.text,
                                             boundingBox = line.boundingBox,
-                                            cornerPoints = line.cornerPoints,
+                                            cornerPoints = line.cornerPoints?.copyOf(),
                                             elements = line.elements.map { element ->
                                                 OcrTextElement(
                                                     text = element.text,

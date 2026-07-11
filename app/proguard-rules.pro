@@ -19,3 +19,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Google ML Kit — text recognition native libraries and model classes
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
+# TensorFlow Lite — native libraries
+-keep class org.tensorflow.lite.** { *; }
+-dontwarn org.tensorflow.lite.**
