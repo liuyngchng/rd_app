@@ -28,7 +28,6 @@ AI 对话助手 + 双摄录像 + 离线 OCR 文字识别 + 离线目标检测的
 |---|---|
 | `androidx.compose.material3` | Material 3 UI 组件 |
 | `androidx.lifecycle:lifecycle-viewmodel-compose` | MVVM ViewModel |
-| `com.google.mlkit:text-recognition-chinese:16.0.1` | **离线 OCR 引擎**（Google ML Kit） |
 | `com.microsoft.onnxruntime:onnxruntime-android:1.21.1` | **ONNX 推理运行时**（PaddleOCR 模型推理） |
 | `org.opencv:opencv:4.9.0` | **图像预处理**（PaddleOCR 依赖，官方 SDK 本地模块） |
 | `org.tensorflow:tensorflow-lite-task-vision:0.4.4` | **离线目标检测引擎**（EfficientDet-Lite2） |
@@ -137,90 +136,55 @@ KEY_PASSWORD=xxx
 
 ### 使用的模型
 
-本应用集成了 **Google ML Kit Text Recognition V2** 的中文识别模型：
+本应用 OCR 功能基于 **PaddleOCR**，通过 ONNX Runtime 进行离线推理。模型文件随 APK 打包在 `app/src/main/assets/models/` 中：
 
 ```
-Maven 坐标: com.google.mlkit:text-recognition-chinese:16.0.1
+app/src/main/assets/models/
+├── det/
+│   └── inference.onnx          # 文字检测模型（~4.6 MB）
+└── rec/
+    ├── inference.onnx           # 文字识别模型（~11 MB）
+    ├── inference.yml            # 模型配置
+    └── ppocr_keys_v1.txt        # 字符字典
 ```
 
-该模型基于深度神经网络，支持 **简体中文、繁体中文、日文、韩文、拉丁字母** 的混合识别，涵盖**印刷体**和**手写体**。
-
-### 模型获取方式
-
-模型文件随 Gradle 依赖**自动打包到 APK 中**，无需手动下载。
-
-**Maven 仓库地址**（Gradle 构建时自动拉取）：
-
-```
-https://maven.google.com/web/index.html#com.google.mlkit:text-recognition-chinese
-```
-
-直接下载 AAR 的镜像站点：
-
-| 站点 | 地址 |
-|---|---|
-| **Google Maven 官方** | `https://dl.google.com/dl/android/maven2/com/google/mlkit/text-recognition-chinese/16.0.1/` |
-| **Maven Central 镜像** | `https://repo1.maven.org/maven2/com/google/mlkit/text-recognition-chinese/16.0.1/` |
-| **阿里云 Maven 镜像**（国内推荐） | `https://maven.aliyun.com/repository/google/com/google/mlkit/text-recognition-chinese/16.0.1/` |
-
-### AAR 中包含的模型文件
-
-`text-recognition-chinese` AAR 内包含以下 native 模型：
-
-```
-AAR 内部结构:
-├── jni/
-│   ├── arm64-v8a/libmlkit_google_ocr_pipeline.so   (~8 MB)
-│   ├── armeabi-v7a/libmlkit_google_ocr_pipeline.so  (~6 MB)
-│   └── x86_64/libmlkit_google_ocr_pipeline.so       (~10 MB)
-├── assets/
-│   └── mlkit_ocr_models/                            (识别模型参数)
-└── classes.jar                                      (Java/Kotlin API)
-```
-
-模型总大小约 **8-16 MB**（取决于最终 APK 包含的 CPU 架构）。
+模型总大小约 **16 MB**，采用 ONNX 格式，通过 `com.microsoft.onnxruntime:onnxruntime-android:1.21.1` 进行 CPU 推理。
 
 ### 模型加载时机
 
-- **首次使用** OCR 功能时，ML Kit 自动从 APK 中提取模型文件到应用内部存储
-- **后续使用**直接加载已提取的模型，无额外开销
+- **打开 OCR 页面**时自动加载模型（异步，需等待几秒）
+- 首次加载后缓存在内存中，后续识别无需重新加载
 - **全程离线**，不需要网络连接
 
-### 与 Play Services 版本的区别
+### 与 ML Kit OCR 的区别
 
-> ⚠️ **不要使用** `com.google.android.gms:play-services-mlkit-text-recognition`
+> 本项目最初使用 Google ML Kit（`text-recognition-chinese`），已替换为 PaddleOCR。
 
-| | 本应用使用（Bundled） | Play Services 版 |
+| | PaddleOCR (当前) | ML Kit (已废弃) |
 |---|---|---|
-| 依赖 | `text-recognition-chinese` | `play-services-mlkit-text-recognition` |
-| 模型位置 | APK 内打包 | 运行时从 Google Play 下载 |
-| 离线能力 | ✅ 完全离线 | ❌ 首次需联网下载 |
-| APK 体积 | +8-16 MB | 不增加 |
-| 可靠性 | 高（无外部依赖） | 取决于 Google Play Services 可用性 |
+| 推理引擎 | ONNX Runtime | Google ML Kit（闭源） |
+| 模型格式 | ONNX | 私有格式 |
+| 模型大小 | ~16 MB | ~8-16 MB |
+| 中文准确率 | 高 | 高 |
+| 可定制性 | ✅ 可替换模型 | ❌ 无法替换 |
+| 离线能力 | ✅ 完全离线 | ✅ 完全离线 |
 
 ### 识别性能参考
 
 | 指标 | 数值 |
 |---|---|
-| 单帧识别耗时 | 300-500ms |
-| 中文印刷体准确率 | 90-95% |
-| 中文手写体准确率 | 80-88% |
-| 内存占用 | 15-45 MB |
-| 硬件加速 | NNAPI（Android 8.1+ 自动启用） |
+| 首次加载耗时 | 3-10 秒（取决于设备性能） |
+| 单帧识别耗时 | 200-800ms |
+| 内存占用 | 50-100 MB（含 ONNX Runtime） |
 
-### 模型版本更新
+### 模型更新
 
-Google 会不定期更新识别模型，升级方式：
+模型来自 PaddleOCR 官方发布，更新方式：
 
-```toml
-# gradle/libs.versions.toml
-[versions]
-mlkitTextRecognition = "16.0.1"  # 修改此版本号
-
-# 然后同步 Gradle 即可
+```bash
+# 替换 assets/models/ 下的 .onnx 文件为新版本
+# 保持文件名和目录结构不变即可
 ```
-
-查看最新版本：[Google Maven - ML Kit](https://maven.google.com/web/index.html#com.google.mlkit:text-recognition-chinese)
 
 ---
 
