@@ -211,7 +211,6 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
     }
 
     // ── initialise cameras (runs when permissionsReady becomes true) ──
-    @OptIn(ExperimentalCoroutinesApi::class)
     LaunchedEffect(permissionsReady) {
         if (!permissionsReady) return@LaunchedEffect
 
@@ -241,11 +240,11 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
         suspendCancellableCoroutine<Unit> { cont ->
             rearSession.open(
                 onReady = { rearOk = true;
-                    cont.resume(Unit, null)
+                    cont.resumeWith(Result.success(Unit))
                 },
                 onFail = { err ->
                     errorMsg = err
-                    cont.resume(Unit, null)
+                    cont.resumeWith(Result.success(Unit))
                 }
             )
         }
@@ -261,13 +260,13 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
             suspendCancellableCoroutine<Unit> { cont ->
                 frontSession.open(
                     onReady = { frontReady = true;
-                        cont.resume(Unit, null)
+                        cont.resumeWith(Result.success(Unit))
                     },
                     onFail = { err ->
                         Log.w("VideoRecorder", "Front camera unavailable: $err")
                         // Continue with rear only
                         frontRef.value = null
-                        cont.resume(Unit, null)
+                        cont.resumeWith(Result.success(Unit))
                     }
                 )
             }

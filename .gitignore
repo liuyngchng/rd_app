@@ -88,6 +88,8 @@ performance/
 
 # NDK 相关
 *.so
+!opencv-sdk/native/libs/**/*.so
+!app/src/main/jniLibs/**/*.so
 *.dylib
 *.dll
 *.obj

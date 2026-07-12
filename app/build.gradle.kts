@@ -35,6 +35,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -52,6 +53,7 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
     buildFeatures {
         compose = true
     }
@@ -59,6 +61,12 @@ android {
 
     aaptOptions {
         noCompress("tflite")
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
 }
@@ -96,6 +104,7 @@ dependencies {
     implementation(libs.mlkit.text.recognition.chinese)
     implementation(libs.tensorflow.lite.task.vision)
     implementation(libs.exifinterface)
+    implementation(project(":ppocr-sdk"))
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

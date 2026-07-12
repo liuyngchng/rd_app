@@ -106,6 +106,11 @@ fun OcrScreen(
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var galleryBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+    // Initialize PaddleOCR engine
+    LaunchedEffect(Unit) {
+        viewModel.initOCR(context)
+    }
+
     // Track camera permission state (resets on app reinstall)
     var hasCameraPermission by remember {
         mutableStateOf(

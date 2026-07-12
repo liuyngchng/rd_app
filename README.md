@@ -28,8 +28,89 @@ AI 对话助手 + 双摄录像 + 离线 OCR 文字识别 + 离线目标检测的
 |---|---|
 | `androidx.compose.material3` | Material 3 UI 组件 |
 | `androidx.lifecycle:lifecycle-viewmodel-compose` | MVVM ViewModel |
-| `com.google.mlkit:text-recognition-chinese:16.0.1` | **离线 OCR 引擎** |
-| `org.tensorflow:tensorflow-lite-task-vision:0.4.4` | **离线目标检测引擎** |
+| `com.google.mlkit:text-recognition-chinese:16.0.1` | **离线 OCR 引擎**（Google ML Kit） |
+| `com.microsoft.onnxruntime:onnxruntime-android:1.21.1` | **ONNX 推理运行时**（PaddleOCR 模型推理） |
+| `org.opencv:opencv:4.9.0` | **图像预处理**（PaddleOCR 依赖，官方 SDK 本地模块） |
+| `org.tensorflow:tensorflow-lite-task-vision:0.4.4` | **离线目标检测引擎**（EfficientDet-Lite2） |
+
+## OpenCV SDK 集成说明
+
+本项目使用 [OpenCV 官方 Android SDK 4.9.0](https://github.com/opencv/opencv/releases/tag/4.9.0)，作为本地模块 `:opencv-sdk` 引入。
+
+> ⚠️ **不要使用** `com.quickbirdstudios:opencv:4.5.3`（PaddleOCR 官方文档推荐）。该第三方重打包版本存在编译缺陷——`libopencv_java4.so` 引用了 libc++ 私有符号 `__sfp_handle_exceptions`，会导致运行时 `dlopen` 失败。
+
+### 初次配置
+
+1. 下载 [opencv-4.9.0-android-sdk.zip](https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-android-sdk.zip)
+2. 解压后将以下内容放入 `opencv-sdk/` 目录：
+
+```
+opencv-sdk/
+├── build.gradle.kts      # Android Library 构建配置
+├── java/
+│   ├── AndroidManifest.xml
+│   ├── res/              # 资源文件（CameraBridgeViewBase 等）
+│   └── src/              # OpenCV Java API（org.opencv.*）
+└── native/
+    └── libs/             # Native 库（4 个 ABI）
+        ├── arm64-v8a/libopencv_java4.so
+        ├── armeabi-v7a/libopencv_java4.so
+        ├── x86/libopencv_java4.so
+        └── x86_64/libopencv_java4.so
+```
+
+> 仅需保留 `java/` 和 `native/libs/`，`etc/`（级联分类器）、`3rdparty/`、`staticlibs/`、`java/javadoc/` 均可删除。
+
+### 为什么不用 Maven 上的 OpenCV
+
+| | quickbirdstudios (不可用) | 官方 SDK (本项目使用) |
+|---|---|---|
+| 来源 | 第三方重打包 | opencv.org 官方构建 |
+| 版本 | 4.5.3 | 4.9.0 |
+| libc++ ABI | ❌ 引用私有符号，运行时崩溃 | ✅ 正确，无私有符号依赖 |
+| 发布形式 | Maven AAR | ZIP + 本地模块 |
+
+## PaddleOCR SDK 集成说明
+
+本项目 OCR 功能基于 **PaddleOCR**，Android SDK 源码来自 PaddleOCR 官方仓库的 `deploy/ppocr-android/` 目录，作为本地模块 `:ppocr-sdk` 引入。
+
+### 源码来源
+
+| 项 | 值 |
+|---|---|
+| **仓库** | [PaddlePaddle/PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) |
+| **路径** | `deploy/ppocr-android/ppocr-sdk/` |
+| **分支** | `main`（或 `release/3.7`，两者一致） |
+| **本地模块** | `ppocr-sdk/` |
+
+### 依赖链
+
+```
+app
+ └── ppocr-sdk (本地模块)
+       ├── opencv-sdk (本地模块，OpenCV 4.9.0 官方 SDK)
+       └── com.microsoft.onnxruntime:onnxruntime-android:1.21.1
+```
+
+### 更新 PaddleOCR SDK
+
+当上游 PaddleOCR 发布新版本时：
+
+```bash
+# 1. 拉取最新代码
+cd /home/rd/workspace/PaddleOCR
+git checkout main && git pull
+
+# 2. 对比差异后手动合并到本地 ppocr-sdk/
+diff -r deploy/ppocr-android/ppocr-sdk/ /home/rd/workspace/rd_app/ppocr-sdk/
+
+# 3. 关注版本号变化
+#    gradle/libs.versions.toml → onnxruntime / opencv 版本
+```
+
+### 关于 PaddleOCR 文档中的 OpenCV 依赖
+
+PaddleOCR 官方 Android 文档推荐使用 `com.quickbirdstudios:opencv:4.5.3`（Maven 坐标），该包存在编译缺陷（详见上方 [OpenCV SDK 集成说明](#opencv-sdk-集成说明)）。本项目已将 OpenCV 替换为官方 4.9.0 SDK，功能完全兼容。
 
 ## 构建
 
@@ -211,27 +292,22 @@ mlkitTextRecognition = "16.0.1"  # 修改此版本号
 ## 项目结构
 
 ```
-app/src/main/java/com/rd/rd_app/
-├── MainActivity.kt              # 单 Activity 入口 + 导航状态机
-├── ConfigManager.kt             # SharedPreferences 持久化单例
-├── VideoRecorder.kt             # Camera2 双摄录像
-├── GlVideoRenderer.kt           # OpenGL ES 时间戳渲染
-└── ui/
-    ├── theme/
-    │   ├── Color.kt             # Material3 调色板（深色/浅色）
-    │   ├── Type.kt              # 字体排版
-    │   └── Theme.kt             # RdAppTheme
-    └── screen/
-        ├── chat/                # AI 聊天
-        ├── config/              # 设置页面
-        ├── login/               # 登录页面
-        ├── profile/             # 个人中心 + 快捷操作
-        └── ocr/                 # 离线 OCR
-            ├── OcrViewModel.kt  # OCR 状态管理 + ML Kit 调用
-            └── OcrScreen.kt     # OCR 界面（拍照/相册/实时扫描）
-        └── objectdetection/     # 离线目标检测（新增）
-            ├── ObjectDetectionViewModel.kt  # 检测器管理 + TFLite 调用
-            └── ObjectDetectionScreen.kt     # 检测界面（拍照/相册/实时检测）
+├── app/                            # 主应用模块
+│   └── src/main/java/com/rd/rd_app/
+│       ├── MainActivity.kt
+│       ├── ConfigManager.kt
+│       ├── VideoRecorder.kt
+│       └── ui/screen/
+│           ├── chat/               # AI 聊天
+│           ├── config/             # 设置页面
+│           ├── ocr/                # 离线 OCR（PaddleOCR + ONNX）
+│           ├── objectdetection/    # 离线目标检测
+│           ├── login/              # 登录页面
+│           └── profile/            # 个人中心
+├── ppocr-sdk/                      # PaddleOCR Android SDK（从 PaddleOCR/deploy/ppocr-android 导入）
+├── opencv-sdk/                     # OpenCV 4.9.0 官方 Android SDK（本地模块，不通过 Maven）
+├── gradle/libs.versions.toml       # 版本目录
+└── settings.gradle.kts             # 模块注册
 ```
 
 ## 权限说明
