@@ -37,7 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
@@ -332,7 +332,7 @@ fun ProfileScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Default.TextSnippet,
+                                        imageVector = Icons.AutoMirrored.Filled.TextSnippet,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)

@@ -132,7 +132,7 @@ class OcrViewModel : ViewModel() {
             } finally {
                 // Recycle the bitmap unless it's still needed for display.
                 // Callers that need the bitmap (e.g. gallery mode) should pass a copy.
-                if (bitmap != null && !bitmap.isRecycled) {
+                if (!bitmap.isRecycled) {
                     bitmap.recycle()
                 }
                 if (!_scanEnabled.value) {

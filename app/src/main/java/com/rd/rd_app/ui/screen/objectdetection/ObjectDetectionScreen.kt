@@ -888,6 +888,7 @@ private fun startPreview(
 ) {
     try {
         val surface = Surface(textureView.surfaceTexture)
+        @Suppress("DEPRECATION")
         camera.createCaptureSession(
             listOf(surface),
             object : CameraCaptureSession.StateCallback() {

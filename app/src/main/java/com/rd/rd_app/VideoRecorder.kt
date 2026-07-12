@@ -211,6 +211,7 @@ fun VideoRecordingScreen(onExit: () -> Unit) {
     }
 
     // ── initialise cameras (runs when permissionsReady becomes true) ──
+    @OptIn(ExperimentalCoroutinesApi::class)
     LaunchedEffect(permissionsReady) {
         if (!permissionsReady) return@LaunchedEffect
 
@@ -653,6 +654,7 @@ private class CameraSession(
                 device.createCaptureSession(sessionConfig)
             } else {
                 // 旧 API (向后兼容)
+                @Suppress("DEPRECATION")
                 device.createCaptureSession(
                     listOf(surface),
                     object : CameraCaptureSession.StateCallback() {
@@ -686,7 +688,12 @@ private class CameraSession(
         isRecordingVideo = true
 
         try {
-            val mr = MediaRecorder().apply {
+            val mr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }.apply {
                 setVideoSource(MediaRecorder.VideoSource.SURFACE)
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -759,6 +766,7 @@ private class CameraSession(
                         )
                         device.createCaptureSession(sessionConfig)
                     } else {
+                        @Suppress("DEPRECATION")
                         device.createCaptureSession(
                             listOf(previewSurf, inputSurface),
                             sessionCallback,
@@ -822,6 +830,7 @@ private class CameraSession(
         val surf = previewSurface ?: return
         val device = cameraDevice ?: return
         try {
+            @Suppress("DEPRECATION")
             device.createCaptureSession(listOf(surf),
                 object : CameraCaptureSession.StateCallback() {
                     override fun onConfigured(session: CameraCaptureSession) {

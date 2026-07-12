@@ -858,6 +858,7 @@ private fun startPreview(
     try {
         val surface = Surface(textureView.surfaceTexture)
         surfaceRef.value = surface
+        @Suppress("DEPRECATION")
         camera.createCaptureSession(
             listOf(surface),
             object : CameraCaptureSession.StateCallback() {
