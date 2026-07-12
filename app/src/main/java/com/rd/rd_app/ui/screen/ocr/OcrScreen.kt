@@ -106,6 +106,13 @@ fun OcrScreen(
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var galleryBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+    // Track camera permission state (resets on app reinstall)
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
     // Camera launcher for photo capture mode
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -154,6 +161,7 @@ fun OcrScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        hasCameraPermission = isGranted
         if (isGranted) {
             // Retry the action that needed permission
             when (inputMode) {
@@ -268,6 +276,8 @@ fun OcrScreen(
                     OcrInputMode.LIVE_SCAN -> {
                         LiveCameraPreview(
                             scanEnabled = scanEnabled,
+                            hasCameraPermission = hasCameraPermission,
+                            onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                             onFrameCaptured = { bitmap -> viewModel.processImage(bitmap) },
                             textBlocks = textBlocks,
                             modifier = Modifier.fillMaxSize()
@@ -644,6 +654,8 @@ private fun BoundingBoxOverlay(
 @Composable
 private fun LiveCameraPreview(
     scanEnabled: Boolean,
+    hasCameraPermission: Boolean,
+    onRequestPermission: () -> Unit,
     onFrameCaptured: (Bitmap) -> Unit,
     textBlocks: List<OcrTextBlock>,
     modifier: Modifier = Modifier
@@ -708,6 +720,16 @@ private fun LiveCameraPreview(
         }
     }
 
+    // Retry camera open when permission is granted after the surface is already available
+    LaunchedEffect(hasCameraPermission) {
+        if (hasCameraPermission) {
+            val tv = textureView
+            if (tv != null && tv.isAvailable && !cameraOpened) {
+                openCamera(tv)
+            }
+        }
+    }
+
     // Periodic frame capture for live scan (every 2s to avoid flickering)
     LaunchedEffect(scanEnabled) {
         if (!scanEnabled) return@LaunchedEffect
@@ -759,8 +781,28 @@ private fun LiveCameraPreview(
             modifier = Modifier.fillMaxSize()
         )
 
+        // Show permission request UI when camera permission is denied
+        if (!hasCameraPermission) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "需要相机权限才能使用实时扫描",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                Button(onClick = onRequestPermission) {
+                    Text("授予权限")
+                }
+            }
+        }
+
         // Scan indicator
-        if (scanEnabled) {
+        if (scanEnabled && hasCameraPermission) {
             Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
