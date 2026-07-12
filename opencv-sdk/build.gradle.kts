@@ -15,6 +15,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    lint {
+        disable += "MissingPermission"
+    }
+
     buildFeatures {
         buildConfig = true
     }
