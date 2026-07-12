@@ -73,8 +73,12 @@ app/google-services.json
 app/src/debug/google-services.json
 app/src/release/google-services.json
 app/src/main/assets/*
+!app/src/main/assets/models/
+!app/src/main/assets/efficientdet_lite2.tflite
 # 资源文件，可能会较大
 **/assets/*
+!**/assets/models/
+!app/src/main/assets/efficientdet_lite2.tflite
 
 # Firebase
 firebase-debug.log
