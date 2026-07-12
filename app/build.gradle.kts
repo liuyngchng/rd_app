@@ -101,7 +101,6 @@ dependencies {
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.mlkit.text.recognition.chinese)
     implementation(libs.tensorflow.lite.task.vision)
     implementation(libs.exifinterface)
     implementation(project(":ppocr-sdk"))
